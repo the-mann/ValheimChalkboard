@@ -1,0 +1,17 @@
+name: Multiplayer regressions
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  multiplayer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run production RPC regression tests with simulated peers
+        run: dotnet run --project tests/MultiplayerTests -c Release -p:TargetFramework=net8.0
