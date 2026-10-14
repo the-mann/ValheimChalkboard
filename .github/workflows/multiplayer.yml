@@ -1,4 +1,4 @@
-name: Multiplayer regressions
+name: Multiplayer and compatibility tests
 on:
   push:
   pull_request:
@@ -7,11 +7,23 @@ permissions:
   contents: read
 jobs:
   multiplayer:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Run production RPC regression tests with simulated peers
-        run: dotnet run --project tests/MultiplayerTests -c Release -p:TargetFramework=net8.0
+      - name: Run production RPC tests with two simulated peers
+        run: dotnet run --project tests/MultiplayerTests -c Release
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check required-client policy and Thunderstore release metadata
+        run: python scripts/test_compatibility.py

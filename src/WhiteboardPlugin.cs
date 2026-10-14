@@ -3,13 +3,15 @@ using BepInEx;
 using Jotunn.Configs;
 using Jotunn.Entities;
 using Jotunn.Managers;
+using Jotunn.Utils;
 using TMPro;
 using UnityEngine;
 
 namespace ValheimWhiteboard
 {
-    [BepInPlugin("marcus.valheim.whiteboard", "Valheim Chalkboard", "0.4.0")]
+    [BepInPlugin("marcus.valheim.whiteboard", "Valheim Chalkboard", "0.4.1")]
     [BepInDependency(Jotunn.Main.ModGuid)]
+    [NetworkCompatibility(CompatibilityLevel.EveryoneMustHaveMod, VersionStrictness.Patch)]
     public sealed class WhiteboardPlugin : BaseUnityPlugin
     {
         private Material boardMaterial;
@@ -126,6 +128,7 @@ namespace ValheimWhiteboard
         }
     }
 }
+
 
 
 

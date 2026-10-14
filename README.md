@@ -43,7 +43,7 @@ The repository does not redistribute proprietary game assemblies.
 dotnet run --project tests/MultiplayerTests -c Release
 ```
 
-With .NET 8, add `-p:TargetFramework=net8.0`. GitHub Actions runs this on each
+Tests use .NET 8 by default. GitHub Actions runs this on each
 push and pull request. No game installation or test-framework package is needed.
 
 The tests compile the **actual production DrawingBoard.cs** with minimal game
@@ -73,7 +73,7 @@ visual size. Back up worlds before removing mods with placed custom pieces.
 
 ## Validation status
 
-0.4.0 compiles against the locally installed game and Jotunn 2.30.2.
+0.4.1 compiles against the locally installed game and Jotunn 2.30.2.
 All 16 simulated multiplayer regression cases pass locally. Live two-client
 and dedicated-server testing has not yet been completed. Do not interpret
 CI success as proof of in-game multiplayer compatibility.
@@ -81,4 +81,11 @@ CI success as proof of in-game multiplayer compatibility.
 MIT licensed. See [LICENSE](LICENSE).
 
 0.4.0 replaces the generic IMGUI editor with native Jotunn wood panels, Valheim fonts and buttons, a framed slate and chalk tools. It uses the game's GuiScaler component and an overlay above the HUD. In-game visual verification of this update is pending.
+
+
+## Client compatibility
+
+All clients and servers must have the same mod patch version. Vanilla clients are not supported; Jotunn is configured to reject them before world entry. See [compatibility policy and live test matrix](docs/VANILLA_COMPATIBILITY.md). The matrix remains unverified in-game.
+
+Run `python scripts/test_compatibility.py` for release and compatibility-policy guards. CI runs multiplayer tests on Windows and Linux and these guards on Linux.
 
