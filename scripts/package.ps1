@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $dllPath = (Resolve-Path -LiteralPath $Dll).Path
-$outputPath = [System.IO.Path]::GetFullPath($OutputFile)
+$outputPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputFile)
 $stage = Join-Path $repo ("work/package-"+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force "$stage/BepInEx/plugins/ValheimWhiteboard" | Out-Null
 New-Item -ItemType Directory -Force ([System.IO.Path]::GetDirectoryName($outputPath)) | Out-Null
