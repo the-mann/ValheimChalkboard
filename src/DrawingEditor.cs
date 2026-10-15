@@ -10,15 +10,15 @@ namespace ValheimWhiteboard
         private static DrawingEditor instance;
         private DrawingBoard board;
         private Texture2D preview;
-        private AutosaveDraft draft;
-        private byte[] pixels { get => draft.Pixels; set => draft.Pixels = value; }
+        private PixelDraft draft;
+        private byte[] pixels => draft.Pixels;
         private readonly Stack<byte[]> undo = new Stack<byte[]>();
-        private int revision => draft.Revision;
+        
         private int radius = 1;
-        private int failures { get => draft.Failures; set => draft.Failures = value; }
+        
         private byte color = 1;
         private bool drawing, inputBlocked;
-        private bool pending => draft.Pending;
+        private bool pending => draft.PendingCount != 0;
         private bool dirty => draft.Dirty;
         private bool closing => draft.Closing;
         private Vector2Int previous;
@@ -40,7 +40,7 @@ namespace ValheimWhiteboard
             if (instance != null) return;
             instance = new GameObject("ChalkboardEditor").AddComponent<DrawingEditor>();
             instance.board = target;
-            instance.draft = new AutosaveDraft(target.ReadPixels(), target.Revision);
+            instance.draft = new PixelDraft(target.ReadPixels());
             instance.preview = DrawingBoard.NewTexture();
             instance.Refresh();
             instance.oldLock = Cursor.lockState;
@@ -122,7 +122,7 @@ namespace ValheimWhiteboard
                 mark.GetComponent<Image>().raycastTarget=false;
                 chalkSelection.Add(Selection(b));
             }
-            var wipe=ButtonAt("Wipe",tools,160,115,38,38,()=>color=0);
+            var wipe=ButtonAt("Eraser",tools,160,115,38,38,()=>color=0);
             var wt=wipe.GetComponentInChildren<Text>();if(wt!=null)wt.fontSize=12;
             chalkSelection.Insert(0,Selection(wipe));
             TextAt("STROKE",tools,94,169,174,32,25,true);
@@ -133,9 +133,9 @@ namespace ValheimWhiteboard
                 var t=b.GetComponentInChildren<Text>();if(t!=null)t.fontSize=16;
                 sizeSelection.Add(Selection(b));
             }
-            ButtonAt("Undo stroke",tools,94,273,174,42,()=>{if(undo.Count>0){pixels=undo.Pop();Changed();}});
-            ButtonAt("Wipe board",tools,94,325,174,42,()=>{Snapshot();pixels=new byte[DrawingBoard.ByteCount];Changed();});
-            toolHint=TextAt("Draw with the mouse.\nLift the chalk to sync.",tools,94,392,174,68,18);
+            ButtonAt("Undo stroke",tools,94,273,174,42,()=>{if(undo.Count>0){draft.Replace(undo.Pop());Changed();}});
+            ButtonAt("Wipe board",tools,94,325,174,42,()=>{Snapshot();draft.Replace(new byte[DrawingBoard.ByteCount],true);Changed();});
+            toolHint=TextAt("Draw with the mouse.\nMarks sync as you draw.",tools,94,392,174,68,18);
             var frameObject=GUIManager.Instance.CreateWoodpanel(panel,new Vector2(0,1),new Vector2(0,1),Vector2.zero,100,100,false);
             frame=frameObject.GetComponent<RectTransform>();
             var canvasObject=new GameObject("Slate",typeof(RectTransform),typeof(RawImage));canvasObject.transform.SetParent(frame,false);
@@ -144,7 +144,7 @@ namespace ValheimWhiteboard
             var raw=canvasObject.GetComponent<RawImage>();raw.texture=preview;raw.raycastTarget=true;
             statusText=TextAt(status,panel,0,0,100,38,18);
             var sr=statusText.rectTransform;sr.anchorMin=new Vector2(0,0);sr.anchorMax=new Vector2(1,0);sr.anchoredPosition=new Vector2(-75,28);sr.sizeDelta=new Vector2(-220,38);
-            retry=ButtonAt("Retry",panel,0,0,100,36,()=>{failures=0;Flush();},false);
+            retry=ButtonAt("Retry",panel,0,0,100,36,()=>{draft.Retry();Flush();},false);
             var rr=retry.GetComponent<RectTransform>();rr.anchorMin=rr.anchorMax=new Vector2(1,0);rr.anchoredPosition=new Vector2(-85,28);
             retry.gameObject.SetActive(false);
             Layout();
@@ -158,10 +158,10 @@ namespace ValheimWhiteboard
             frame.anchoredPosition=new Vector2(34+availableWidth/2,-92-availableHeight/2);
             statusText.text=status;
             toolHint.gameObject.SetActive(size.y>=620);
-            foreach(var b in editingButtons)b.interactable=!pending&&!closing;
+            foreach(var b in editingButtons)b.interactable=!closing;
             for(int i=0;i<chalkSelection.Count;i++)chalkSelection[i].enabled=i==color;
             for(int i=0;i<sizeSelection.Count;i++)sizeSelection[i].enabled=i+1==radius;
-            retry.gameObject.SetActive(failures>=3);
+            retry.gameObject.SetActive(draft.Failed);
         }
         private void Update()
         {
@@ -170,7 +170,7 @@ namespace ValheimWhiteboard
             Cursor.lockState=CursorLockMode.None;Cursor.visible=true;
             Layout();
             if(Input.GetKeyDown(KeyCode.Escape)) {RequestClose();return;}
-            if(!pending&&!closing)
+            if(!closing)
             {
                 bool inside=RectTransformUtility.RectangleContainsScreenPoint(slate,Input.mousePosition,null);
                 if(Input.GetMouseButtonDown(0)&&inside)
@@ -179,9 +179,11 @@ namespace ValheimWhiteboard
                 {if(inside){var point=Point();Line(previous,point);previous=point;Changed();}else drawing=false;}
                 if(Input.GetMouseButtonUp(0))drawing=false;
             }
-            if(draft.CheckTimeout(Time.unscaledTime))
-            {status="Connection lost. Your draft is still here — Retry.";}
-            if(draft.ShouldSubmit(Time.unscaledTime,drawing))Flush();
+            draft.Observe(board.ReadPixels());Refresh();
+            draft.CheckTimeout(Time.unscaledTime);
+            if(draft.Failed)status="Could not sync. Your marks are still here � Retry.";
+            Flush();
+            if(closing&&!dirty)Close();
         }
         private Vector2Int Point()
         {
@@ -190,34 +192,28 @@ namespace ValheimWhiteboard
             return new Vector2Int(Mathf.Clamp((int)((local.x-rect.xMin)/rect.width*DrawingBoard.Width),0,DrawingBoard.Width-1),Mathf.Clamp((int)((rect.yMax-local.y)/rect.height*DrawingBoard.Height),0,DrawingBoard.Height-1));
         }
         private void Flush()
-        {
-            if(pending||!dirty||board==null)return;
-            if(!draft.BeginSubmit(board.ReadPixels(),board.Revision,Time.unscaledTime))return;
-            Refresh();status="Keeping your marks…";board.Submit(revision,pixels);
-        }
+        {if(board!=null)draft.Flush(Time.unscaledTime,BoardNetwork.NextRequest,board.SubmitPixel);}
         private void RequestClose()
-        {drawing=false;if(draft.RequestClose()){Close();return;}if(!pending)Flush();}
+        {drawing=false;draft.Closing=true;Flush();if(!dirty)Close();}
         private void Dab(Vector2Int point)
-        {for(int y=-radius+1;y<radius;y++)for(int x=-radius+1;x<radius;x++)if(x*x+y*y<=radius*radius)DrawingBoard.SetPixel(pixels,point.x+x,point.y+y,color);}
+        {for(int y=-radius+1;y<radius;y++)for(int x=-radius+1;x<radius;x++)if(x*x+y*y<=radius*radius)draft.Set(point.x+x,point.y+y,color);}
         private void Line(Vector2Int a,Vector2Int b)
         {int count=Mathf.Max(Mathf.Abs(a.x-b.x),Mathf.Abs(a.y-b.y));for(int i=0;i<=count;i++)Dab(new Vector2Int(Mathf.RoundToInt(Mathf.Lerp(a.x,b.x,count==0?0:(float)i/count)),Mathf.RoundToInt(Mathf.Lerp(a.y,b.y,count==0?0:(float)i/count))));}
         private void Snapshot(){if(undo.Count>=30)undo.Clear();undo.Push((byte[])pixels.Clone());}
-        private void Changed(){draft.Changed(Time.unscaledTime);status="Drawing…";Refresh();}
+        private void Changed(){status="Drawing…";Refresh();}
         private void Refresh()=>DrawingBoard.PaintTexture(preview,pixels);
-        public static void Report(DrawingBoard target,bool accepted,int newRevision)
+        public static void Report(DrawingBoard target,bool accepted,int newRevision) { }
+        public static void ReportPixel(DrawingBoard target,int request,bool accepted)
         {
-            if(instance==null||instance.board!=target||!instance.pending)return;
-            bool close=instance.draft.Acknowledge(accepted,newRevision,Time.unscaledTime);
-            if(accepted)
-            {instance.status="Your marks are kept.";if(close)instance.Close();}
-            else
-            {instance.status=instance.failures>=3?"Could not sync. Your draft is still here — Retry.":"Another hand is drawing. Trying again…";}
+            if(instance==null||instance.board!=target)return;
+            if(request!=0)instance.draft.Acknowledge(request,accepted);
+            instance.status=instance.draft.Failed?"Could not sync. Your marks are still here � Retry.":"Your marks are kept automatically.";
         }
         public static void BoardDestroyed(DrawingBoard target){if(instance!=null&&instance.board==target)instance.Close();}
         private void Close()=>Destroy(gameObject);
         private void OnDestroy()
         {
-            if(draft!=null&&dirty&&!pending&&board!=null&&board.CanEdit())board.Submit(revision,pixels);
+            if(draft!=null&&board!=null&&board.CanEdit())Flush();
             if(inputBlocked)GUIManager.BlockInput(false);Cursor.lockState=oldLock;Cursor.visible=oldVisible;
             if(uiRoot!=null)Destroy(uiRoot);if(preview!=null)Destroy(preview);if(instance==this)instance=null;
         }

@@ -84,5 +84,5 @@ namespace ValheimWhiteboard{
  internal static class MigrationPersistence { internal static void Save() {} }
  public class SignDecoration:UnityEngine.MonoBehaviour{}
  public static class WhiteboardPlugin{public static List<string> Logs=new();public static void LogInfo(string s)=>Logs.Add(s);public static void LogError(string s)=>Logs.Add(s);}
- public static class DrawingEditor{public static List<(bool accepted,int revision)> Results=new();public static void Open(DrawingBoard b){}public static void Report(DrawingBoard b,bool a,int r)=>Results.Add((a,r));public static void BoardDestroyed(DrawingBoard b){} }
+ public static class DrawingEditor{public static List<(bool accepted,int revision)> Results=new();public static void Open(DrawingBoard b){}public static void Report(DrawingBoard b,bool a,int r)=>Results.Add((a,r));public static void BoardDestroyed(DrawingBoard b){}public static void ReportPixel(DrawingBoard b,int request,bool accepted){} }
 }

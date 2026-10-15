@@ -84,6 +84,21 @@ namespace ValheimWhiteboard
                 Pump(() => saved);
                 check(saved && board.GetString(BoardSchema.DataKey,"") == encoded && board.GetInt(BoardSchema.RevisionKey,0) == 1 && board.GetOwner() == ZNet.GetUID(),
                     "actual host accepts socket drawing write on stock-owned sign and returns canonical snapshot");
+                // Several updates within one held stroke, all from the same old base.
+                for(int update=0;update<5;update++)
+                {
+                    int request=79+update, expected=2+update; bool streamed=false;
+                    BoardData.SetPixel(drawing,21+update,30,6); string frame=Convert.ToBase64String(drawing);
+                    onResult=(sender,id,reply,accepted,revision,pixels)=>streamed=reply==request&&accepted&&revision==expected&&pixels==frame;
+                    modded.InvokeRoutedRPC(ZNet.GetUID(),BoardNetwork.Save,board.m_uid,request,0,frame);
+                    Pump(()=>streamed);
+                    check(streamed&&board.GetString(BoardSchema.DataKey,"")==frame,"socket stream update "+update+" accepts last received snapshot with old base revision");
+                }
+                bool pixelSaved=false;
+                modded.Register<ZDOID,int,bool,int,string>(BoardNetwork.PixelResult,(sender,id,request,accepted,revision,delta)=>pixelSaved=id.Equals(board.m_uid)&&request==100&&accepted&&delta=="42:3");
+                modded.InvokeRoutedRPC(ZNet.GetUID(),BoardNetwork.Pixel,board.m_uid,100,42,3);
+                Pump(()=>pixelSaved);
+                check(pixelSaved&&BoardData.Pixel(Convert.FromBase64String(board.GetString(BoardSchema.DataKey,"")),42,0)==3,"individual pixel update and compact acknowledgement traverse actual sockets");
                 // A stock endpoint has no Chalkboard handlers. Its ordinary ZDO payload still works.
                 stock[1].m_rpc.Register<ZPackage>("ChalkboardQA_StockData", (rpc, package) =>
                 { vanillaData = package.ReadInt() == BoardSchema.SignHash && package.ReadString() == "Chalkboard"; });

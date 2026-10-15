@@ -14,12 +14,13 @@ BepInEx/LogOutput.log files. Never use a production world for fault injection.
 
 1. Both players join without prefab/version errors. Build each board. Confirm
    all three registration log entries, correct size, interaction and refunds.
-2. A draws red in the top left, ends the stroke, and waits for written status.
-   B opens the board: the stroke must appear. Reverse roles using blue bottom right.
-3. Both open at the same revision. A changes the upper half while B changes the
-   lower half. Release near-simultaneously. After retries, reopen both editors:
-   both independent changes must remain. Repeat with the same pixel: last
-   accepted/rebased local edit wins, and both clients converge.
+2. Both editors remain open. A holds the mouse and draws continuously for five
+   seconds. B must see intermediate drawing updates before A releases the mouse.
+   Reverse roles. Repeat while an acknowledgement is delayed; local drawing must
+   continue, and the final frame must be sent after the pending acknowledgement.
+3. Both draw from the same starting revision. The last valid full snapshot
+   received by the server wins; independent changes need not survive together.
+   Stop drawing and confirm both idle editors converge to the server image.
 4. Test Undo, Wipe, Wipe all and Done/Escape. A finishes a long stroke then
    immediately presses Done: the editor must wait for acknowledgement, and B
    must see that final stroke. Repeat at UI scales 85%, 100%, 150%, 200%.
@@ -31,7 +32,7 @@ BepInEx/LogOutput.log files. Never use a production world for fault injection.
    Drawings and sizes must persist. Rejoin with B as the first nearby client.
 8. Force ownership handoff by moving the original nearby owner out of the zone
    while B edits. A save either succeeds or reports failure/time-out without
-   silently discarding the draft. Retry must converge without reverting A's marks.
+   silently discarding the draft. Retry sends the retained snapshot; its last server arrival may replace concurrent marks.
 9. Disconnect the writer after submitting, reconnect, and inspect saved state.
    A lost response may correspond to an accepted save; no duplicate revision
    effects, corruption, stuck cursor or permanently blocked controls are allowed.

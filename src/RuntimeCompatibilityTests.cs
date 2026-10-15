@@ -32,7 +32,8 @@ namespace ValheimWhiteboard
             check(Compatible(serverData,stock), "actual Jotunn version comparison allows absent client chalkboard module");
             check(!Compatible(stock,serverData), "actual Jotunn version comparison rejects missing host chalkboard module");
             check(!Compatible(serverData,Data(Version("0.4.1"))), "actual Jotunn version comparison rejects old custom-prefab clients");
-            check(Compatible(serverData,Data(Version("0.5.1"))), "actual Jotunn minor policy allows compatible patch versions");
+            check(!Compatible(serverData,Data(Version("0.5.0"))), "actual Jotunn version comparison rejects older snapshot protocol clients");
+            check(Compatible(serverData,Data(Version("0.6.1"))), "actual Jotunn minor policy allows compatible patch versions");
             var package = (ZPackage)AccessTools.Method(dataType,"ToZPackage").Invoke(serverData,null); package.SetPos(0);
             var copy = AccessTools.Constructor(dataType,new[]{typeof(ZPackage)}).Invoke(new object[]{package});
             check(Compatible(serverData,copy), "actual Jotunn version package roundtrip preserves compatibility");

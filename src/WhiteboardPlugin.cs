@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace ValheimWhiteboard
 {
-    [BepInPlugin("marcus.valheim.whiteboard", "Valheim Chalkboard", "0.5.0")]
+    [BepInPlugin("marcus.valheim.whiteboard", "Valheim Chalkboard", "0.6.0")]
     [BepInDependency(Jotunn.Main.ModGuid)]
     [NetworkCompatibility(CompatibilityLevel.ServerMustHaveMod, VersionStrictness.Minor)]
     public sealed class WhiteboardPlugin : BaseUnityPlugin

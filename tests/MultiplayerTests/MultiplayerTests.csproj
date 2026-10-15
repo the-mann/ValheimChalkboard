@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/BoardData.cs" Link="Production/BoardData.cs" />
+    <Compile Include="../../src/PixelDraft.cs" Link="Production/PixelDraft.cs" />
     <Compile Include="../../src/AutosaveDraft.cs" Link="Production/AutosaveDraft.cs" />
     <Compile Include="../../src/BoardSchema.cs" Link="Production/BoardSchema.cs" />
     <Compile Include="../../src/BoardMigration.cs" Link="Production/BoardMigration.cs" />

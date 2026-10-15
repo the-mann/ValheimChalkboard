@@ -38,6 +38,35 @@ class Program
     {var o=new GameObject();o.AddComponent<ZNetView>().Data=record;var b=o.AddComponent<DrawingBoard>();Invoke(b,"Awake");Invoke(b,"Start");return b;}
     static void Main()
     {
+        Test("individual pixel arrivals merge different pixels and last same-pixel arrival wins",()=>{
+            var f=Setup();
+            void Pixel(long sender,int request,int index,int color)=>ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,sender,f.record.m_uid,request,index,color);
+            Pixel(101,1,1,2);Pixel(102,2,2,3);Pixel(101,3,1,4);
+            Assert(Revision(f.record)==3&&BoardData.Pixel(Pixels(f.record),1,0)==4&&BoardData.Pixel(Pixels(f.record),2,0)==3,"Pixel arrivals overwrote unrelated drawing");
+            Pixel(102,4,1,0);Assert(BoardData.Pixel(Pixels(f.record),1,0)==0&&BoardData.Pixel(Pixels(f.record),2,0)==3,"Eraser overwrote unrelated pixel");
+            Assert(ZRoutedRpc.instance.Sent.Where(x=>x.method==BoardNetwork.PixelResult).All(x=>x.target!=103),"Pixel event leaked to vanilla");
+        });
+        Test("pixel endpoint rejects unauthorized and malformed edits",()=>{
+            var f=Setup();foreach(var edit in new[]{(-1,1),(9216,1),(0,-1),(0,8)})ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,f.record.m_uid,1,edit.Item1,edit.Item2);
+            ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,103,f.record.m_uid,1,0,1);
+            f.a.Dead=true;ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,f.record.m_uid,1,0,1);
+            Assert(Revision(f.record)==0,"Invalid pixel request mutated board");
+        });
+        Test("pixel queue sends each edit while drawing and preserves received remote pixels",()=>{
+            Setup();var d=new PixelDraft(new byte[BoardData.ByteCount]);d.Set(1,0,2);d.Set(2,0,3);d.Set(1,0,4);
+            var sent=new System.Collections.Generic.List<PixelDraft.Edit>();int sequence=0;d.Flush(0,()=>++sequence,sent.Add);
+            Assert(sent.Count==3&&sent[0].Index==1&&sent[2].Color==4,"Pixel edits were replaced by snapshot or coalesced");
+            var remote=Convert.FromBase64String(Image(8,8,6));d.Observe(remote);
+            Assert(BoardData.Pixel(d.Pixels,8,8)==6&&BoardData.Pixel(d.Pixels,1,0)==4,"Pending overlay destroyed remote pixel");
+            foreach(var edit in sent)d.Acknowledge(edit.Request,true);Assert(!d.Dirty,"Acknowledgements left queue dirty");
+        });
+        Test("pixel queue timeout retries in order and wipe sends zero for every pixel",()=>{
+            var d=new PixelDraft(new byte[BoardData.ByteCount]);d.Set(1,0,2);int n=0;d.Flush(0,()=>++n,e=>{});d.CheckTimeout(11);Assert(d.Failed&&d.Dirty,"Timeout lost pixel");
+            d.Retry();var sent=new System.Collections.Generic.List<PixelDraft.Edit>();d.Flush(12,()=>++n,sent.Add);Assert(sent.Count==1&&sent[0].Color==2,"Retry lost pixel");d.Acknowledge(sent[0].Request,true);
+            d.Replace(new byte[BoardData.ByteCount],true);int zeros=0;
+            while(d.Dirty){sent.Clear();d.Flush(13,()=>++n,sent.Add);foreach(var e in sent){Assert(e.Color==0,"Wipe sent nonzero pixel");zeros++;d.Acknowledge(e.Request,true);}}
+            Assert(zeros==9216,"Wipe did not clear every pixel independently");
+        });
         Test("placement template advertises vanilla sign before record creation",()=>{
             Setup();foreach(int kind in new[]{1,2,3}){var o=new GameObject();o.AddComponent<BoardTemplate>().Kind=kind;var n=o.AddComponent<ZNetView>();string name=BoardSchema.LegacyNames[kind-1];BoardPatches.NetworkPrefab(n,ref name);Assert(name=="sign","Custom prefab escaped");n.Data.Prefab=name.GetStableHashCode();BoardPatches.InitializeBacking(n);Assert(BoardSchema.Kind(n.Data)==kind,"Size marker absent");}
         });
@@ -84,11 +113,10 @@ class Program
         Test("two peers save sequentially through host RPC",()=>{
             var f=Setup();Save(101,f.record,0,Image(1,1,2));Save(102,f.record,1,Image(2,2,3));Assert(Accepted()&&Revision(f.record)==2&&Reply().target==102,"Second peer failed");
         });
-        Test("stale peer cannot replace accepted drawing",()=>{
-            var f=Setup();string a=Image(1,1,2);Save(101,f.record,0,a);Save(102,f.record,0,Image(2,2,3));Assert(!Accepted()&&Revision(f.record)==1&&f.record.GetString(BoardSchema.DataKey)==a,"Stale write accepted");Assert((int)Reply().args[3]==1&&(string)Reply().args[4]==a,"Reject did not return canonical snapshot");
-        });
-        Test("rebase retry preserves two independent peer strokes",()=>{
-            var f=Setup();var blank=Pixels(f.record);var draft=Convert.FromBase64String(Image(2,2,3));Save(101,f.record,0,Image(1,1,2));Save(102,f.record,0,Convert.ToBase64String(draft));var remote=Convert.FromBase64String((string)Reply().args[4]);var merged=BoardData.MergeDraft(remote,blank,draft);Save(102,f.record,(int)Reply().args[3],Convert.ToBase64String(merged),2);Assert(Accepted()&&BoardData.Pixel(Pixels(f.record),1,1)==2&&BoardData.Pixel(Pixels(f.record),2,2)==3,"Stroke lost");
+        Test("last server arrival wins regardless of base revision",()=>{
+            var f=Setup();Save(101,f.record,0,Image(1,1,2));string last=Image(2,2,3);Save(102,f.record,0,last);
+            Assert(Accepted()&&Revision(f.record)==2&&f.record.GetString(BoardSchema.DataKey)==last,"Last arrival did not win");
+            Save(101,f.record,0,Image(3,3,4));Assert(Accepted()&&Revision(f.record)==3&&BoardData.Pixel(Pixels(f.record),3,3)==4,"Older base revision was rejected");
         });
         Test("late vanilla owner update cannot roll back drawing revision",()=>{
             var f=Setup();var delayed=f.record.Snapshot();Save(101,f.record,0,Image(7,8,6));delayed.Set(ZDOVars.s_text,"Vanilla edited this label");delayed.Set("health",42);var packet=new ZPackage();delayed.Serialize(packet);f.record.Owner=103;f.record.Deserialize(packet);BoardPatches.IncomingRecord(f.record);Assert(Revision(f.record)==1&&BoardData.Pixel(Pixels(f.record),7,8)==6&&BoardSchema.Kind(f.record)==1,"Canonical data reverted");Assert(f.record.GetString(ZDOVars.s_text)=="Vanilla edited this label"&&f.record.GetInt("health")==42,"Vanilla text/health overwritten");
@@ -153,11 +181,11 @@ class Program
         Test("disabled and overlapping wards match vanilla permissions",()=>{
             var f=Setup();PrivateArea.Add(new PrivateArea{Enabled=false});Save(102,f.record,0,Image(0,0,1));Assert(Accepted(),"Disabled ward blocked");var blocked=new PrivateArea();PrivateArea.Add(blocked);var allowed=new PrivateArea();allowed.Permitted.Add(f.b.ID);PrivateArea.Add(allowed);Save(102,f.record,1,Image(1,1,2));Assert(Accepted(),"Permitted overlapping ward denied");
         });
-        Test("bad payloads and future revisions do not mutate canonical state",()=>{
-            foreach(var bad in new[]{"",new string('!',6144),Convert.ToBase64String(Enumerable.Repeat((byte)0x88,BoardData.ByteCount).ToArray())}){var f=Setup();Save(101,f.record,0,bad);Assert(!Accepted()&&Revision(f.record)==0,"Invalid payload accepted");}var g=Setup();Save(101,g.record,20,Image(0,0,1));Assert(!Accepted()&&Revision(g.record)==0,"Future revision accepted");
+        Test("bad payloads do not mutate canonical state",()=>{
+            foreach(var bad in new[]{"",new string('!',6144),Convert.ToBase64String(Enumerable.Repeat((byte)0x88,BoardData.ByteCount).ToArray())}){var f=Setup();Save(101,f.record,0,bad);Assert(!Accepted()&&Revision(f.record)==0,"Invalid payload accepted");}
         });
-        Test("replayed request cannot increment revision twice",()=>{
-            var f=Setup();var data=Image(0,0,1);Save(101,f.record,0,data);Save(101,f.record,0,data);Assert(!Accepted()&&Revision(f.record)==1,"Replay changed state");
+        Test("repeated snapshot is accepted in server receive order",()=>{
+            var f=Setup();var data=Image(0,0,1);Save(101,f.record,0,data);Save(101,f.record,0,data);Assert(Accepted()&&Revision(f.record)==2&&f.record.GetString(BoardSchema.DataKey)==data,"Repeated snapshot rejected");
         });
         Test("non-host ignores direct save RPC",()=>{
             var f=Setup();ZNet.instance.Server=false;Save(101,f.record,0,Image(0,0,1));Assert(Revision(f.record)==0,"Non-host accepted write");
@@ -177,10 +205,20 @@ class Program
         Test("codec covers all pixels and merge includes erasing without mutation",()=>{
             var p=new byte[BoardData.ByteCount];for(int y=0;y<BoardData.Height;y++)for(int x=0;x<BoardData.Width;x++)BoardData.SetPixel(p,x,y,(byte)((x+y)%8));Assert(BoardData.TryDecode(Convert.ToBase64String(p),out var q)&&p.SequenceEqual(q),"Codec roundtrip failed");var d=(byte[])p.Clone();BoardData.SetPixel(d,1,1,0);var m=BoardData.MergeDraft(p,p,d);Assert(BoardData.Pixel(m,1,1)==0&&BoardData.Pixel(p,1,1)==2,"Eraser merge failed");BoardData.SetPixel(d,-1,0,1);BoardData.SetPixel(d,128,0,1);BoardData.SetPixel(d,0,0,99);Assert(BoardData.Pixel(d,0,0)==0,"Invalid color changed data");
         });
-        Test("autosave waits for stroke completion and debounce",()=>{
-            var d=new AutosaveDraft(new byte[BoardData.ByteCount],0);d.Changed(1f);
-            Assert(!d.ShouldSubmit(2f,true)&&!d.ShouldSubmit(1.3f,false)&&d.ShouldSubmit(1.5f,false),"Stroke debounce broken");
-            Assert(d.BeginSubmit(d.Baseline,0,2f)&&!d.BeginSubmit(d.Baseline,0,2f)&&!d.ShouldSubmit(4f,false),"Duplicate pending submit");
+        Test("autosave streams during a held stroke at bounded cadence",()=>{
+            var d=new AutosaveDraft(new byte[BoardData.ByteCount],0);d.Changed(.01f);
+            Assert(!d.ShouldSubmit(.05f,true)&&d.ShouldSubmit(.11f,true),"Streaming cadence broken");
+            Assert(d.BeginSubmit(d.Baseline,0,.11f)&&!d.BeginSubmit(d.Baseline,0,.11f)&&!d.ShouldSubmit(4f,true),"Duplicate pending submit");
+            BoardData.SetPixel(d.Pixels,2,3,4);d.Changed(.12f);d.Acknowledge(true,1,.13f);
+            Assert(d.Dirty&&!d.Pending&&BoardData.Pixel(d.Baseline,2,3)==0&&BoardData.Pixel(d.Pixels,2,3)==4,"Ack discarded edits made in flight");
+            Assert(!d.ShouldSubmit(.15f,true)&&d.ShouldSubmit(.22f,true),"Stream did not continue while drawing");
+            d.RequestClose();d.BeginSubmit(d.Baseline,1,.23f);Assert(d.Acknowledge(true,2,.24f)&&!d.Dirty,"Final stream snapshot not acknowledged");
+        });
+        Test("closing with an in-flight frame waits for the final edited frame",()=>{
+            var d=new AutosaveDraft(new byte[BoardData.ByteCount],0);d.Changed(0);d.BeginSubmit(d.Baseline,0,.1f);
+            BoardData.SetPixel(d.Pixels,8,8,5);d.Changed(.11f);Assert(!d.RequestClose(),"Closed with stream pending");
+            Assert(!d.Acknowledge(true,1,.12f)&&d.Closing&&d.Dirty&&d.ShouldSubmit(.12f,false),"Earlier ack closed or delayed final frame");
+            d.BeginSubmit(d.Baseline,1,.12f);Assert(d.Acknowledge(true,2,.13f)&&!d.Dirty,"Final frame did not complete close");
         });
         Test("Done waits for host acknowledgement and retains baseline",()=>{
             var f=Setup();var initial=Pixels(f.record);var d=new AutosaveDraft(initial,0);
@@ -189,14 +227,17 @@ class Program
             Assert(Accepted()&&d.Acknowledge(true,Revision(f.record),1.1f)&&!d.Dirty&&!d.Pending&&d.Revision==1,"Done failed to await accepted save");
             Assert(BoardData.Pixel(Pixels(f.record),8,9)==4&&d.Baseline.SequenceEqual(d.Pixels)&&!ReferenceEquals(d.Baseline,d.Pixels),"Accepted baseline not preserved independently");
         });
-        Test("editor retries stale save with remote drawing and local eraser intact",()=>{
+        Test("stream snapshot replaces concurrent image without rebasing",()=>{
             var f=Setup();Save(101,f.record,0,Image(2,2,5));var d=new AutosaveDraft(Pixels(f.record),1);
-            BoardData.SetPixel(d.Pixels,2,2,0);BoardData.SetPixel(d.Pixels,9,9,6);d.Changed(0);d.BeginSubmit(d.Baseline,1,1);
-            var remote=Pixels(f.record);BoardData.SetPixel(remote,20,20,7);Save(102,f.record,1,Convert.ToBase64String(remote));
-            Save(101,f.record,d.Revision,Convert.ToBase64String(d.Pixels));Assert(!Accepted(),"Stale editor accepted");
-            d.Acknowledge(false,Revision(f.record),1.1f);Assert(d.ShouldSubmit(2f,false),"Rejected draft did not retry");
-            d.BeginSubmit(Pixels(f.record),Revision(f.record),2);Save(101,f.record,d.Revision,Convert.ToBase64String(d.Pixels));d.Acknowledge(Accepted(),Revision(f.record),2.1f);
-            Assert(!d.Dirty&&BoardData.Pixel(Pixels(f.record),2,2)==0&&BoardData.Pixel(Pixels(f.record),9,9)==6&&BoardData.Pixel(Pixels(f.record),20,20)==7,"Editor rebase lost stroke/eraser");
+            BoardData.SetPixel(d.Pixels,2,2,0);BoardData.SetPixel(d.Pixels,9,9,6);d.Changed(0);
+            Save(102,f.record,1,Image(20,20,7));d.BeginSubmit(Pixels(f.record),Revision(f.record),1);
+            Save(101,f.record,d.Revision,Convert.ToBase64String(d.Pixels));d.Acknowledge(Accepted(),Revision(f.record),1.1f);
+            Assert(!d.Dirty&&BoardData.Pixel(Pixels(f.record),2,2)==0&&BoardData.Pixel(Pixels(f.record),9,9)==6&&BoardData.Pixel(Pixels(f.record),20,20)==0,"Snapshot unexpectedly rebased");
+        });
+        Test("idle editor observes remote snapshots without replacing a local draft",()=>{
+            var d=new AutosaveDraft(new byte[BoardData.ByteCount],0);var remote=Convert.FromBase64String(Image(1,1,3));
+            Assert(d.Observe(remote,1)&&BoardData.Pixel(d.Pixels,1,1)==3,"Remote image not visible");
+            d.Changed(1);Assert(!d.Observe(new byte[BoardData.ByteCount],2)&&BoardData.Pixel(d.Pixels,1,1)==3,"Remote image replaced local draft");
         });
         Test("timeout and rejection preserve draft and stop automatic retries",()=>{
             var d=new AutosaveDraft(new byte[BoardData.ByteCount],0);BoardData.SetPixel(d.Pixels,4,5,2);d.Changed(0);d.RequestClose();d.BeginSubmit(d.Baseline,0,1);

@@ -1,3 +1,10 @@
+## 0.6.0
+- Stream individual pixel edits while drawing; different pixels combine and the last server arrival wins for each pixel.
+- Keep drawing while edits await acknowledgement; retry retains queued pixels.
+- Send compact pixel notifications only to negotiated modded peers; vanilla sign fallback remains supported.
+- Rename the wipe brush to Eraser; retain Wipe board for clearing the board.
+- Requires 0.6.x on the host and drawing clients because the wire protocol changed.
+
 ## 0.5.0 (unreleased rewrite candidate)
 - Store all boards as vanilla signs; decorate marked signs on modded clients.
 - Allow optional vanilla clients through the server-required Jotunn policy.

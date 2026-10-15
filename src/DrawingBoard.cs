@@ -44,7 +44,7 @@ namespace ValheimWhiteboard
             Refresh();
         }
         private void Update()
-        { if (Time.unscaledTime >= nextPoll) {nextPoll=Time.unscaledTime+.25f;Refresh();} }
+        { if (Time.unscaledTime >= nextPoll) {nextPoll=Time.unscaledTime+.1f;Refresh();} }
         private void Refresh()
         {
             if (view == null || !view.IsValid()) return;
@@ -82,6 +82,20 @@ namespace ValheimWhiteboard
         {
             if(request!=awaiting||!TryDecode(snapshot,out _)||revision<replyRevision)return;
             replyRevision=revision;replyPixels=snapshot;Refresh();DrawingEditor.Report(this,accepted,revision);
+        }
+        public void SubmitPixel(PixelDraft.Edit edit)
+        {
+            if(!CanEdit()){DrawingEditor.ReportPixel(this,edit.Request,false);return;}
+            BoardNetwork.SubmitPixel(id,edit.Request,edit.Index,edit.Color);
+        }
+        public void PixelAcknowledged(int request,bool accepted,int revision,int index,byte color)
+        {
+            if(accepted&&revision==Revision+1)
+            {
+                var pixels=ReadPixels();BoardData.SetPixel(pixels,index%Width,index/Width,color);
+                replyRevision=revision;replyPixels=Convert.ToBase64String(pixels);Refresh();
+            }
+            DrawingEditor.ReportPixel(this,request,accepted);
         }
         public static bool TryDecode(string data,out byte[] pixels)=>BoardData.TryDecode(data,out pixels);
         public static byte Pixel(byte[] pixels,int x,int y)=>BoardData.Pixel(pixels,x,y);
