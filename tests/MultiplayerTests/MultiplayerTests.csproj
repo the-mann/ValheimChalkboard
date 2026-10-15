@@ -1,5 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework Condition="'$(TEST_FRAMEWORK)' == ''">net8.0</TargetFramework><TargetFramework Condition="'$(TEST_FRAMEWORK)' != ''">$(TEST_FRAMEWORK)</TargetFramework><EnableDefaultCompileItems>true</EnableDefaultCompileItems></PropertyGroup>
-  <ItemGroup><Compile Include="../../src/DrawingBoard.cs" Link="DrawingBoard.cs" /></ItemGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework Condition="'$(TEST_FRAMEWORK)' == ''">net8.0</TargetFramework>
+    <TargetFramework Condition="'$(TEST_FRAMEWORK)' != ''">$(TEST_FRAMEWORK)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/BoardData.cs" Link="Production/BoardData.cs" />
+    <Compile Include="../../src/AutosaveDraft.cs" Link="Production/AutosaveDraft.cs" />
+    <Compile Include="../../src/BoardSchema.cs" Link="Production/BoardSchema.cs" />
+    <Compile Include="../../src/BoardMigration.cs" Link="Production/BoardMigration.cs" />
+    <Compile Include="../../src/MigrationBackup.cs" Link="Production/MigrationBackup.cs" />
+    <Compile Include="../../src/BoardAccess.cs" Link="Production/BoardAccess.cs" />
+    <Compile Include="../../src/BoardNetwork.cs" Link="Production/BoardNetwork.cs" />
+    <Compile Include="../../src/BoardPatches.cs" Link="Production/BoardPatches.cs" />
+    <Compile Include="../../src/DrawingBoard.cs" Link="Production/DrawingBoard.cs" />
+  </ItemGroup>
 </Project>
-

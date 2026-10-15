@@ -1,6 +1,7 @@
 name: Multiplayer and compatibility tests
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -25,5 +26,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Check required-client policy and Thunderstore release metadata
+      - name: Check vanilla fallback policy and Thunderstore release metadata
         run: python scripts/test_compatibility.py

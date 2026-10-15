@@ -1,6 +1,6 @@
 # Mixed vanilla/modded sessions: vanilla-sign backing
 
-Status: investigated, API compile probe passed; not implemented or released.
+Status: implemented in the unreleased 0.5.0 candidate. Managed and headless engine validation are in progress; real client acceptance remains a release gate.
 Current 0.4.1 still requires the mod on every peer. Do not relax that flag alone.
 
 ## Intended result
@@ -34,7 +34,7 @@ hashes the result, and sets that hash on the new ZDO.
 ## Authority and protocol
 
 Replace owner-directed WB_Save with a registered global host-directed RPC:
-ChalkboardV2_Save(board ZDOID, expected revision, encoded pixels).
+ChalkboardV2_Save(board ZDOID, request ID, expected revision, encoded pixels).
 Resolve the ZDO on the host, verify it is a marked vanilla sign, and retain
 sender identity, nearby/alive, ward, payload and revision checks. The host must
 own the ZDO while committing and force replication of the updated record.
@@ -128,4 +128,3 @@ Live, using separate profiles/accounts and a disposable world:
 ## Primary reference
 
 https://valheim-modding.github.io/Jotunn/tutorials/networkcompatibility.html
-

@@ -1,0 +1,56 @@
+PASS Harmony hook installed: ZNetView.GetPrefabName
+PASS Harmony hook installed: ZNetView.Awake
+PASS Harmony hook installed: Sign.Awake
+PASS Harmony hook installed: Sign.Interact
+PASS Harmony hook installed: ZDO.Deserialize
+PASS Harmony hook installed: ZNet.RPC_PeerInfo
+PASS Harmony hook installed: ZDOMan.PrepareSave
+PASS Harmony hook installed: ZNet.ServerLoadWorld
+PASS actual Jotunn module declares host required and client optional
+PASS actual Jotunn version comparison allows absent client chalkboard module
+PASS actual Jotunn version comparison rejects missing host chalkboard module
+PASS actual Jotunn version comparison rejects old custom-prefab clients
+PASS actual Jotunn minor policy allows compatible patch versions
+PASS actual Jotunn version package roundtrip preserves compatibility
+PASS vanilla sign prefab remains undecorated and retains Sign
+PASS menu template retains vanilla Sign: Chalkboard (Small)
+PASS actual patched GetPrefabName returns sign: 1
+PASS vanilla recipe/refunds retained: 1
+PASS template solid collider count matches vanilla: 1
+PASS menu template retains vanilla Sign: Chalkboard (Medium)
+PASS actual patched GetPrefabName returns sign: 2
+PASS vanilla recipe/refunds retained: 2
+PASS template solid collider count matches vanilla: 2
+PASS menu template retains vanilla Sign: Chalkboard (Large)
+PASS actual patched GetPrefabName returns sign: 3
+PASS vanilla recipe/refunds retained: 3
+PASS template solid collider count matches vanilla: 3
+PASS migration preserves actual game ZDO metadata
+PASS actual game serializer preserves bitmap, marker and revision
+PASS actual vanilla text update roundtrip retains opaque chalkboard fields
+PASS QA records never entered world state
+PASS actual Jotunn peer-info gate admits an endpoint with no Jotunn version handshake
+PASS real TCP/ZRpc/ZRoutedRpc capability handshake reaches production handler
+PASS production missing-board rejection survives actual five-argument wire acknowledgement
+PASS actual Player/ZNetView ownership and ward APIs authorize nearby writer
+PASS actual host accepts socket drawing write on stock-owned sign and returns canonical snapshot
+PASS stock endpoint without chalkboard handlers receives ordinary sign data over real socket
+PASS targeted handshake/save replies do not arrive at the stock socket
+PASS actual Unity placement creates marked vanilla sign from the first Awake: 1
+PASS actual marked sign builds its local drawing decoration: 1
+PASS constructed decoration adds no invisible solid colliders: 1
+PASS actual Unity placement creates marked vanilla sign from the first Awake: 2
+PASS actual marked sign builds its local drawing decoration: 2
+PASS constructed decoration adds no invisible solid colliders: 2
+PASS actual Unity placement creates marked vanilla sign from the first Awake: 3
+PASS actual marked sign builds its local drawing decoration: 3
+PASS constructed decoration adds no invisible solid colliders: 3
+PASS actual restarted world contains all three unloaded migration fixtures
+PASS restarted world migrated fixture to vanilla sign: 1
+PASS actual disk load/migration retains drawing, revision, health, creator and position: 1
+PASS restarted world migrated fixture to vanilla sign: 2
+PASS actual disk load/migration retains drawing, revision, health, creator and position: 2
+PASS restarted world migrated fixture to vanilla sign: 3
+PASS actual disk load/migration retains drawing, revision, health, creator and position: 3
+PASS migrated world committed before network entry
+PASS runtime smoke suite; 55 checks. Live mixed-client transport is a separate gate.

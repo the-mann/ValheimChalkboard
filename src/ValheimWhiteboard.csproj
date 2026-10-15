@@ -5,31 +5,31 @@
     <LangVersion>latest</LangVersion>
     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
     <ValheimDir Condition="'$(ValheimDir)' == ''">$(VALHEIM_DIR)</ValheimDir>
+    <GameManaged Condition="'$(GameManaged)' == ''">$(ValheimDir)/valheim_Data/Managed</GameManaged>
     <BepInExDir Condition="'$(BepInExDir)' == ''">$(ValheimDir)/BepInEx</BepInExDir>
     <JotunnPath Condition="'$(JotunnPath)' == ''">$(BepInExDir)/plugins/Jotunn/Jotunn.dll</JotunnPath>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="UnityEngine.UIModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="assembly_guiutils"><HintPath>$(ValheimDir)/valheim_Data/Managed/assembly_guiutils.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.UI"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(BepInExDir)/core/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="assembly_utils"><HintPath>$(GameManaged)/assembly_utils.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(GameManaged)/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(GameManaged)/UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(GameManaged)/UnityEngine.AssetBundleModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="assembly_guiutils"><HintPath>$(GameManaged)/assembly_guiutils.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(GameManaged)/UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(GameManaged)/UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameManaged)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="BepInEx"><HintPath>$(BepInExDir)/core/BepInEx.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Jotunn"><HintPath>$(JotunnPath)</HintPath><Private>false</Private></Reference>
-    <Reference Include="assembly_valheim"><HintPath>$(ValheimDir)/valheim_Data/Managed/assembly_valheim.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.CoreModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(ValheimDir)/valheim_Data/Managed/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.TextMeshPro"><HintPath>$(ValheimDir)/valheim_Data/Managed/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="assembly_valheim"><HintPath>$(GameManaged)/assembly_valheim.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(GameManaged)/UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(GameManaged)/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(GameManaged)/UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameManaged)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
   <Target Name="CheckGameReferences" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(ValheimDir)/valheim_Data/Managed/assembly_valheim.dll')" Text="Set ValheimDir to your Valheim installation folder." />
+    <Error Condition="!Exists('$(GameManaged)/assembly_valheim.dll')" Text="Set ValheimDir to your Valheim installation folder." />
     <Error Condition="!Exists('$(BepInExDir)/core/BepInEx.dll')" Text="Set BepInExDir to the installed BepInEx folder (or mod-manager profile)." />
     <Error Condition="!Exists('$(JotunnPath)')" Text="Set JotunnPath to the installed Jotunn.dll." />
   </Target>
 </Project>
-
-
-

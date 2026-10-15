@@ -1,50 +1,38 @@
 # Vanilla-client compatibility
 
-## Supported policy
+## Candidate policy
 
-Chalkboards are custom networked prefabs. Every client and server in a shared
-session must have this mod, BepInEx and Jotunn installed, with the **same mod
-patch version**. Vanilla/unmodded clients cannot view or use these pieces.
-This is enforced through Jotunn's NetworkCompatibility attribute:
-EveryoneMustHaveMod + VersionStrictness.Patch.
+0.5.0 replaces custom network prefabs with real vanilla signs. Jotunn declares `ServerMustHaveMod` with `VersionStrictness.Minor`: the server needs the mod, while clients may be vanilla. The public 0.4.1 release still uses the older required-client policy.
 
-The protection is an early compatibility rejection, not vanilla support.
-It avoids allowing an unmodded client into a world where it cannot resolve the
-custom chalkboard prefab. It also prevents a modded client from placing custom
-pieces on an unmodded server. Existing vanilla signs are cloned as the source
-of new prefabs; their identifier is never registered as a replacement.
+Modded clients decorate marked signs and get drawing tools. Vanilla clients see an ordinary sign and can change its label or dismantle it. Drawing data is stored separately from vanilla text. All sizes retain the vanilla collider and recipe/refunds. Other installed mods can still reject vanilla clients.
 
-## Automated checks
+The host validates drawing requests and retains canonical revisions. Requests target the host, never the current object owner. Capability negotiation gates custom replies, so an unmodded owner does not need drawing RPC handlers. Old owner packets can update vanilla fields but cannot roll back accepted drawing data.
 
-`python scripts/test_compatibility.py` checks the production declaration,
-required Jotunn dependency, stable plugin/prefab identities, separate clone
-registration, package version agreement, dependency strings and icon dimensions.
-GitHub Actions runs these on every push and pull request. The multiplayer
-handler tests additionally cover unauthorized and stale network requests.
+## Migration and recovery
 
-These are static policy guards and simulated handler tests. They do not run
-Jotunn's actual handshake, a vanilla game executable, Unity rendering or world
-loading. They cannot prove that a vanilla client is safely rejected in-game.
+The host scans all records after world loading, including unloaded chunks. Before changing legacy prefab hashes, it writes a `ChalkboardMigrationBackupV2` record journal under `BepInEx/config/ValheimChalkboard/migration-backups`. Each entry contains its original ID, owner, position and serialized record. A journal failure leaves records unchanged.
 
-## Live verification matrix (NOT RUN)
+The converted world must complete a synchronous save before opening or accepting peers. A failed commit keeps the gate closed and can be retried. Migration is idempotent. Always keep a full pre-upgrade world backup as well: the journal is a diagnostic/recovery record snapshot, not a complete replacement world or an automatic rollback utility. Restore the full backup to downgrade.
 
-Use separate disposable profiles and a disposable world. Fully restart between
-rows. Record logs from both endpoints and the Jotunn compatibility dialog.
+## Evidence layers
 
-| Server/host | Joining client | Expected |
+- Managed production-code integration tests: simulated game/storage/transport; cover authority, migration and racing owner updates.
+- Static policy/package guards: declarations, identifiers and metadata; do not establish runtime behavior.
+- Headless actual engine: Harmony bindings, all template hashes, recipe/collider consistency, generic ZDO serialization, real local TCP/RPC framing and targeted acknowledgements.
+- Headless actual world: seed unloaded legacy records, save, restart, verify conversion and retained fields, restart again to check persisted/idempotent migration.
+- Real client acceptance: still required for Steam authentication, actual vanilla world entry, scene rendering, interaction and UI.
+
+The stock socket endpoint in the engine suite intentionally registers no chalkboard handlers. It is a protocol test inside the engine, not an untouched vanilla executable joining Steam.
+
+## Client acceptance matrix
+
+| Host | Client | Expected |
 | --- | --- | --- |
-| Chalkboard 0.4.1 | Chalkboard 0.4.1 | Join; all three sizes and drawing sync work |
-| Chalkboard 0.4.1 | Jotunn installed, Chalkboard absent | Reject before world entry; missing-mod explanation |
-| Chalkboard 0.4.1 | Fully vanilla, no BepInEx/Jotunn | Reject before world entry; no crash or prefab-load spam |
-| Chalkboard 0.4.1 | Chalkboard 0.4.0 | Reject with version mismatch |
-| Fully vanilla | Chalkboard 0.4.1 | Reject modded client before custom-piece placement |
-| Fully vanilla | Fully vanilla | Normal joining unaffected |
+| Chalkboard 0.5.x | Chalkboard 0.5.x | Join, sizes and drawings sync |
+| Chalkboard 0.5.x | Jotunn, no Chalkboard | Join, ordinary signs |
+| Chalkboard 0.5.x | Fully vanilla | Join, ordinary signs, no unknown-prefab/RPC spam |
+| Chalkboard 0.5.x | Chalkboard 0.4.x | Reject incompatible version |
+| Fully vanilla | Chalkboard 0.5.x | Reject before chalkboard placement |
+| Fully vanilla | Fully vanilla | Normal join |
 
-Repeat the modded-server rows on both a player-hosted game and a dedicated
-server. For every rejection, confirm the vanilla client can dismiss the error,
-return to its menus, and join an unrelated vanilla world. Verify the server
-stays healthy and the world file is unchanged by the rejected connection.
-Do not claim live vanilla safety until these rows have actually passed.
-
-Removing the mod from a world with chalkboards is not a migration to vanilla.
-Back up the world and remove custom pieces while the mod is still installed.
+Repeat supported rows on player-hosted and dedicated sessions. Confirm vanilla ownership, label edits, nearby movement, dismantling, refunds and restart. All real-client rows remain unverified until logs and observations are recorded; automated results do not fill them in.

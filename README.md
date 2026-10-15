@@ -1,91 +1,52 @@
 # Valheim Chalkboard
 
-Timber-framed chalkboards for Valheim: draw with the mouse, choose chalk colors,
-undo strokes, and wipe the board. Changes save automatically after a stroke;
-Done or Escape waits for the final save. The editor fills most of the screen
-and follows Valheim's UI scale setting.
+Timber-framed drawing boards in three sizes, with chalk colors, undo, wiping and automatic saving. The editor fills most of the screen and uses Valheim's UI scale setting.
 
-## Pieces
+## 0.5.0 rewrite candidate
 
-Find these under **Hammer > Furniture**:
+The host/server runs Chalkboard. Modded clients see chalkboards and can draw; vanilla clients are intended to see ordinary wooden signs. The public Thunderstore release is still 0.4.1 and requires the mod on every peer. This source candidate must finish mixed-client acceptance testing before publication.
 
-| Piece | Writing area | Materials |
-| --- | --- | --- |
-| Small | 2 x 1.15 m | 4 Wood, 1 Coal |
-| Medium | 3 x 1.725 m | 8 Wood, 2 Coal |
-| Large | 4 x 2.3 m | 16 Wood, 4 Coal |
+Every new board uses the vanilla `sign` network prefab from creation. Size and drawings live in separate ZDO fields. The mod decorates marked signs locally; normal signs remain unchanged. Vanilla text edits retain drawing data, and dismantling removes the shared sign and its drawing.
 
-All sizes use a 128 x 72, eight-color canvas. Existing boards retain the
-`piece_whiteboard` identifier and their drawings. The plugin GUID and assembly
-name remain `marcus.valheim.whiteboard` and `ValheimWhiteboard.dll` for compatibility.
+Find Small, Medium and Large under **Hammer > Furniture**. Writing areas are 2 x 1.15 m, 3 x 1.725 m and 4 x 2.3 m. All sizes use the stock sign's recipe and physical collider so vanilla placement/refunds remain consistent. Larger artwork extends beyond that collider; interact near the center. All use a 128 x 72, eight-color canvas.
 
-## Install
+## Install and migrate
 
-Requires BepInExPack_Valheim and Jotunn. Copy the built DLL to
-`BepInEx/plugins/ValheimWhiteboard/`, or install the Thunderstore package through
-r2modman. Install the same version on every player client and dedicated server.
-Fully restart Valheim after updating. Remove an older manually installed copy
-before using a mod-manager package to avoid loading duplicate DLLs.
+Requires BepInExPack_Valheim and Jotunn. Install on the host/server and on clients that want to draw. Other installed mods may independently require modded clients. Modded peers must use compatible 0.5.x versions; old 0.4.x clients are incompatible.
+
+Back up worlds before upgrading. The host scans loaded and unloaded records for the three old chalkboard prefab identifiers, writes a durable record backup, converts them to marked vanilla signs and commits the world before admitting peers. A failed backup/save keeps entry closed. Drawings, size, placement, health and creator survive conversion. Old boards now use vanilla sign refunds. Conversion is not a supported downgrade to 0.4.x; restore the pre-upgrade world backup to downgrade.
+
+Fully restart Valheim after updating. Remove duplicate manually installed copies. Plugin GUID and assembly name stay `marcus.valheim.whiteboard` and `ValheimWhiteboard.dll`.
 
 ## Build
 
-Requires a .NET SDK and your own installed Valheim, BepInEx, and Jotunn DLLs:
+Use your own installed game/BepInEx/Jotunn assemblies:
 
 ```powershell
-dotnet build src/ValheimWhiteboard.csproj -c Release -p:ValheimDir="PATH_TO_VALHEIM" -p:BepInExDir="PROFILE/BepInEx" -p:JotunnPath="PROFILE/BepInEx/plugins/ValheimModding-Jotunn/Jotunn.dll"
+dotnet build src -c Release -p:ValheimDir="PATH_TO_VALHEIM" -p:BepInExDir="PROFILE/BepInEx" -p:JotunnPath="PROFILE/BepInEx/plugins/ValheimModding-Jotunn/Jotunn.dll"
 ```
 
-The repository does not redistribute proprietary game assemblies.
+For dedicated-server references, set `-p:GameManaged="SERVER/valheim_server_Data/Managed"`. The repository does not redistribute game assemblies.
 
-## Automated multiplayer regression tests
+## Validation
 
 ```powershell
 dotnet run --project tests/MultiplayerTests -c Release
+python scripts/test_compatibility.py
 ```
 
-Tests use .NET 8 by default. GitHub Actions runs this on each
-push and pull request. No game installation or test-framework package is needed.
+Managed tests use .NET 8 and compile production schema, migration, authority, RPC, access and drawing code with game doubles. They cover stale/concurrent requests, rebasing, unauthorized/spoofed senders, ranges/wards, vanilla ownership, late owner packets, migration durability and session resets. They do not prove Unity rendering or a Steam connection.
 
-The tests compile the **actual production DrawingBoard.cs** with minimal game
-and networking doubles. Sixteen regression cases cover two-peer saves, conflicts,
-merge/retry, spoofed identities and acknowledgements, range, death/disconnect,
-ward permissions, ownership handoff, replay, corrupt payloads, world-data
-readback, and the pixel codec. Exceptions fail the process and CI job.
+A separate Windows Actions job downloads the real dedicated server anonymously, builds against it and runs Unity checks without a desktop. It verifies Harmony binding, prefab identities, actual serialization and socket routing, plus saving legacy fixtures and restarting twice to test migration and persistence. See [headless setup](docs/HEADLESS_TESTING.md).
 
-These tests simulate Unity, ZDO storage, RPC delivery and wards. They do not
-verify actual transport, GUI input, shaders, disk saves or a dedicated server.
-The editor autosave state machine is not covered by these handler tests.
-See [live multiplayer testing](docs/MULTIPLAYER_TESTING.md) for acceptance steps.
+The job also loads a migrated world copy without Chalkboard/Jotunn, using a separate read-only observer to verify vanilla sign resolution and retained metadata. After all checks pass it uploads a `chalkboard-candidate` package containing only the mod and package metadata. Game assemblies and the test observer are excluded. To package a local tested DLL, run `scripts/package.ps1 -Dll src/bin/Release/netstandard2.1/ValheimWhiteboard.dll -OutputFile candidate.zip`.
 
-## Multiplayer behavior and limits
+See [compatibility evidence](docs/VANILLA_COMPATIBILITY.md) and [live acceptance cases](docs/MULTIPLAYER_TESTING.md). A Steam-authenticated completely unmodified client join and visual/input acceptance remain separate gates. Passing CI must not be described as proof those gates passed.
 
-Saves replicate through world data after a stroke; strokes are not streamed.
-Revision checks prevent stale saves from replacing a newer drawing. Retrying
-merges changed draft pixels over the newest board; on same-pixel conflicts the
-retrying local change wins. Save failures keep the editor draft with a Retry
-button. Ownership changes or a lost response can time out even if a save landed.
-Wait for the written status before quitting. Death, leaving range, destruction
-or game exit can interrupt an unacknowledged stroke.
+## Drawing behavior
 
-Ward checks use private game APIs and fail closed if unavailable. Mouse only.
-Placement inherits vanilla sign snap points; larger board colliders follow
-visual size. Back up worlds before removing mods with placed custom pieces.
+Saves occur after strokes, rather than streaming every point. Revision checks reject stale writes. Retries rebase changed draft pixels over the newest drawing; the retrying draft wins same-pixel conflicts. Done/Escape waits for acknowledgement. Failed saves keep the draft and show Retry. Death, losing access, destruction or exiting can interrupt an unacknowledged stroke.
 
-## Validation status
+The host owns accepted drawing state even when a vanilla player owns the sign. It restores drawing fields from its canonical copy if an old owner packet arrives, preserving vanilla text/health changes. Custom replies go only to negotiated modded peers. Ward checks fail closed if the required game APIs are unavailable.
 
-0.4.1 compiles against the locally installed game and Jotunn 2.30.2.
-All 16 simulated multiplayer regression cases pass locally. Live two-client
-and dedicated-server testing has not yet been completed. Do not interpret
-CI success as proof of in-game multiplayer compatibility.
-
-MIT licensed. See [LICENSE](LICENSE).
-
-0.4.0 replaces the generic IMGUI editor with native Jotunn wood panels, Valheim fonts and buttons, a framed slate and chalk tools. It uses the game's GuiScaler component and an overlay above the HUD. In-game visual verification of this update is pending.
-
-
-## Client compatibility
-
-All clients and servers must have the same mod patch version. Vanilla clients are not supported; Jotunn is configured to reject them before world entry. See [compatibility policy and live test matrix](docs/VANILLA_COMPATIBILITY.md). The matrix remains unverified in-game.
-
-Run `python scripts/test_compatibility.py` for release and compatibility-policy guards. CI runs multiplayer tests on Windows and Linux and these guards on Linux.
-
+Mouse only. MIT licensed; see [LICENSE](LICENSE).

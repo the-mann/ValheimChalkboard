@@ -1,0 +1,9 @@
+PASS only read-only QA observer loaded; Chalkboard and Jotunn absent
+PASS stock world load retained all three previously migrated boards
+PASS stock engine resolves migrated board as vanilla sign: 1
+PASS stock disk loader retains opaque drawing metadata: 1
+PASS stock engine resolves migrated board as vanilla sign: 2
+PASS stock disk loader retains opaque drawing metadata: 2
+PASS stock engine resolves migrated board as vanilla sign: 3
+PASS stock disk loader retains opaque drawing metadata: 3
+PASS stock-world suite; 8 checks, no Chalkboard/Jotunn loaded
