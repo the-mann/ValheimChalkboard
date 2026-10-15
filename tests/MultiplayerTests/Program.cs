@@ -114,6 +114,12 @@ class Program
         Test("disconnected negotiated peer cannot save",()=>{
             var f=Setup();ZNet.instance.Peers.Remove(102);int before=ZRoutedRpc.instance.Sent.Count;Save(102,f.record,0,Image(0,0,1));Assert(Revision(f.record)==0&&before==ZRoutedRpc.instance.Sent.Count,"Disconnected peer saved");
         });
+        Test("reconnected peer cannot inherit negotiation from a reused UID",()=>{
+            var f=Setup();ZNet.instance.Peers[101]=new ZNetPeer{m_uid=101};int before=ZRoutedRpc.instance.Sent.Count;
+            Save(101,f.record,0,Image(0,0,1));Assert(Revision(f.record)==0&&ZRoutedRpc.instance.Sent.Count==before,"New connection inherited old capability");
+            ZRoutedRpc.instance.Deliver(BoardNetwork.Hello,101,BoardNetwork.Protocol);Save(101,f.record,0,Image(0,0,1));
+            Assert(Accepted()&&Revision(f.record)==1,"Reconnect could not negotiate afresh");
+        });
         Test("ordinary sign cannot be written through drawing endpoint",()=>{
             Setup();var ordinary=new ZDO();ordinary.Set(ZDOVars.s_text,"Keep me");ZDOMan.instance.Add(ordinary);Save(101,ordinary,0,Image(0,0,1));Assert(!Accepted()&&ordinary.Values.Count==1&&ordinary.GetString(ZDOVars.s_text)=="Keep me","Ordinary sign modified");
         });

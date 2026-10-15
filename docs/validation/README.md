@@ -4,7 +4,7 @@ Candidate: unreleased 0.5.0 vanilla-sign rewrite.
 Environment: Windows, Valheim dedicated server 1.0.17 (network 40, world format 41), BepInExPack 5.4.2351, Jotunn 2.30.2, YamlDotNet 16.3.1.
 
 - Actual dedicated-server reference build: passed, no warnings or errors.
-- Managed production-code integration suite: 40 passed (.NET 6 local override; CI uses .NET 8).
+- Managed production-code integration suite: 41 passed (.NET 6 local override; CI uses .NET 8).
 - Static compatibility/package guards: passed.
 - Actual headless engine: 55 checks passed; report in `headless-local.txt`. Includes actual Jotunn optional-client/version enforcement and a successful production socket save using an actual Unity Player on a stock-owned sign.
 - Actual world cycle: legacy fixtures seeded and saved, first restart migrated and committed them, second restart loaded converted signs with all tested fields intact.

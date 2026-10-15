@@ -17,7 +17,7 @@ namespace ValheimWhiteboard
             { Kind = BoardSchema.Kind(record); Revision = Math.Max(0, record.GetInt(BoardSchema.RevisionKey, 0)); Pixels = record.GetString(BoardSchema.DataKey, ""); if (!BoardData.TryDecode(Pixels, out _)) Pixels = BoardSchema.Blank; }
         }
         private static readonly Dictionary<ZDOID, HostState> canonical = new Dictionary<ZDOID, HostState>();
-        private static readonly HashSet<long> capable = new HashSet<long>();
+        private static readonly Dictionary<long, ZNetPeer> capable = new Dictionary<long, ZNetPeer>();
         private static readonly Dictionary<ZDOID, DrawingBoard> boards = new Dictionary<ZDOID, DrawingBoard>();
         private static ZRoutedRpc router;
         private static bool handshake;
@@ -63,7 +63,7 @@ namespace ValheimWhiteboard
         private static void ReceiveHello(long sender, int protocol)
         {
             if (ZNet.instance == null || !ZNet.instance.IsServer() || !Connected(sender)) return;
-            if (protocol == Protocol) capable.Add(sender); else capable.Remove(sender);
+            if (protocol == Protocol) capable[sender] = ZNet.instance.GetPeer(sender); else capable.Remove(sender);
             router.InvokeRoutedRPC(sender, HelloResult, protocol == Protocol ? Protocol : 0);
         }
         private static void ReceiveHelloResult(long sender, int protocol)
@@ -95,12 +95,14 @@ namespace ValheimWhiteboard
         {
             Register();
             if (!Ready || Host == 0) return;
-            if (ZNet.instance.IsServer()) { capable.Add(ZNet.GetUID()); ReceiveSave(ZNet.GetUID(), id, request, revision, pixels); }
+            if (ZNet.instance.IsServer()) { capable[ZNet.GetUID()] = null; ReceiveSave(ZNet.GetUID(), id, request, revision, pixels); }
             else router.InvokeRoutedRPC(Host, Save, id, request, revision, pixels);
         }
         private static void ReceiveSave(long sender, ZDOID id, int request, int expectedRevision, string encoded)
         {
-            if (ZNet.instance == null || !ZNet.instance.IsServer() || !BoardMigration.Ready || !Connected(sender) || !capable.Contains(sender)) return;
+            if (ZNet.instance == null || !ZNet.instance.IsServer() || !BoardMigration.Ready || !Connected(sender)
+                || !capable.TryGetValue(sender, out var negotiatedPeer)
+                || (sender != ZNet.GetUID() && !ReferenceEquals(negotiatedPeer,ZNet.instance.GetPeer(sender)))) return;
             var record = ZDOMan.instance.GetZDO(id);
             if (record != null) RestoreCanonical(record);
             if (record == null || BoardSchema.Kind(record) == 0)
