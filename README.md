@@ -39,6 +39,8 @@ Managed tests use .NET 8 and compile production schema, migration, authority, RP
 
 A separate Windows Actions job downloads the real dedicated server anonymously, builds against it and runs Unity checks without a desktop. It verifies Harmony binding, prefab identities, actual serialization and socket routing, plus saving legacy fixtures and restarting twice to test migration and persistence. See [headless setup](docs/HEADLESS_TESTING.md).
 
+The job also loads a migrated world copy without Chalkboard/Jotunn, using a separate read-only observer to verify vanilla sign resolution and retained metadata. After all checks pass it uploads a `chalkboard-candidate` package containing only the mod and package metadata. Game assemblies and the test observer are excluded. To package a local tested DLL, run `scripts/package.ps1 -Dll src/bin/Release/netstandard2.1/ValheimWhiteboard.dll -OutputFile candidate.zip`.
+
 See [compatibility evidence](docs/VANILLA_COMPATIBILITY.md) and [live acceptance cases](docs/MULTIPLAYER_TESTING.md). A Steam-authenticated completely unmodified client join and visual/input acceptance remain separate gates. Passing CI must not be described as proof those gates passed.
 
 ## Drawing behavior

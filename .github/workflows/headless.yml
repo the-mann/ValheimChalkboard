@@ -35,6 +35,13 @@ jobs:
       - name: Load migrated world copy without Chalkboard or Jotunn
         shell: pwsh
         run: ./scripts/test_stock_world.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -MigratedSaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -OutputDir "$env:RUNNER_TEMP/chalkboard-stock-qa"
+      - name: Package the tested candidate
+        shell: pwsh
+        run: ./scripts/package.ps1 -Dll src/bin/Release/netstandard2.1/ValheimWhiteboard.dll -OutputFile "$env:RUNNER_TEMP/ValheimChalkboard-candidate.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chalkboard-candidate
+          path: ${{ runner.temp }}/ValheimChalkboard-candidate.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
