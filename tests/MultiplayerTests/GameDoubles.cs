@@ -39,12 +39,12 @@ public class Localization{public static Localization instance=new();public strin
 public static class StringExtensionMethods{
  public static int GetStableHashCode(this string value){unchecked{int a=5381,b=a;for(int i=0;i<value.Length&&value[i]!='\0';i+=2){a=((a<<5)+a)^value[i];if(i==value.Length-1||value[i+1]=='\0')break;b=((b<<5)+b)^value[i+1];}return a+b*1566083941;}}
 }
-public static class ZDOVars{public static int s_text="text".GetStableHashCode();}
-public readonly struct ZDOID:IEquatable<ZDOID>{public readonly long User;public readonly uint ID;public ZDOID(long u,uint id){User=u;ID=id;}public bool Equals(ZDOID b)=>User==b.User&&ID==b.ID;public override bool Equals(object o)=>o is ZDOID b&&Equals(b);public override int GetHashCode()=>HashCode.Combine(User,ID);public override string ToString()=>User+":"+ID;}
+public static class ZDOVars{public static int s_text="text".GetStableHashCode(),s_dead="dead".GetStableHashCode(),s_playerID="playerID".GetStableHashCode();}
+public readonly struct ZDOID:IEquatable<ZDOID>{public static readonly ZDOID None=new(0,0);public readonly long User;public readonly uint ID;public ZDOID(long u,uint id){User=u;ID=id;}public bool Equals(ZDOID b)=>User==b.User&&ID==b.ID;public override bool Equals(object o)=>o is ZDOID b&&Equals(b);public override int GetHashCode()=>HashCode.Combine(User,ID);public override string ToString()=>User+":"+ID;}
 public class ZPackage{private byte[] bytes=Array.Empty<byte>();public byte[] GetArray()=>bytes;public void Set(byte[] b)=>bytes=b;}
 public class ZDO{
  static uint next;public ZDOID m_uid=new(100,++next);public long Owner=100;public int Prefab="sign".GetStableHashCode();public UnityEngine.Vector3 Position;public Dictionary<string,object> Values=new();
- public int GetPrefab()=>Prefab;public void SetPrefab(int h)=>Prefab=h;public void SetOwner(long u)=>Owner=u;public long GetOwner()=>Owner;public UnityEngine.Vector3 GetPosition()=>Position;
+ public bool GetBool(int k,bool d=false)=>Values.TryGetValue("#"+k,out var v)?(bool)v:d;public long GetLong(int k,long d=0)=>Values.TryGetValue("#"+k,out var v)?(long)v:d;public void Set(int k,bool v)=>Values["#"+k]=v;public void Set(int k,long v)=>Values["#"+k]=v;public int GetPrefab()=>Prefab;public void SetPrefab(int h)=>Prefab=h;public void SetOwner(long u)=>Owner=u;public long GetOwner()=>Owner;public UnityEngine.Vector3 GetPosition()=>Position;
  public int GetInt(string k,int d=0)=>Values.TryGetValue(k,out var v)?(int)v:d;public string GetString(string k,string d="")=>Values.TryGetValue(k,out var v)?(string)v:d;
  public string GetString(int k,string d="")=>GetString("#"+k,d);public void Set(int k,string v)=>Set("#"+k,v);public void Set(string k,int v)=>Values[k]=v;public void Set(string k,string v)=>Values[k]=v;
  public void Serialize(ZPackage p){using var m=new MemoryStream();using var w=new BinaryWriter(m);w.Write(Prefab);w.Write(Values.Count);foreach(var e in Values.OrderBy(x=>x.Key)){w.Write(e.Key);w.Write(e.Value is int);if(e.Value is int n)w.Write(n);else w.Write((string)e.Value);}p.Set(m.ToArray());}
@@ -55,7 +55,7 @@ public class ZDOMan{
  public static ZDOMan instance=new();private Dictionary<ZDOID,ZDO> m_objectsByID=new();public List<ZDOID> Forced=new();
  public void Add(ZDO z)=>m_objectsByID[z.m_uid]=z;public ZDO GetZDO(ZDOID id)=>m_objectsByID.TryGetValue(id,out var v)?v:null;public void Remove(ZDOID id)=>m_objectsByID.Remove(id);public void ForceSendZDO(ZDOID id)=>Forced.Add(id);
 }
-public class ZNetPeer{public long m_uid;}
+public class ZNetPeer{public long m_uid;public ZDOID m_characterID;}
 public class ZNet{
  public static ZNet instance=new();public bool Server=true;public static long UID=100;public Dictionary<long,ZNetPeer> Peers=new();public ZNetPeer ServerPeer=new(){m_uid=100};
  public static long GetUID()=>UID;public bool IsServer()=>Server;public ZNetPeer GetServerPeer()=>ServerPeer;public ZNetPeer GetPeer(long id)=>Peers.TryGetValue(id,out var p)?p:null;

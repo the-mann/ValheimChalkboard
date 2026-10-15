@@ -13,6 +13,18 @@ namespace ValheimWhiteboard
         private static readonly MethodInfo Permitted = typeof(PrivateArea).GetMethod("IsPermitted", Flags);
         public static bool CanWrite(long sender, Vector3 position)
         {
+            // Dedicated servers need not instantiate the remote Player GameObject.
+            // Resolve the character announced by this connected peer from replicated data.
+            var peer = ZNet.instance.GetPeer(sender);
+            if (peer != null && !peer.m_characterID.Equals(ZDOID.None))
+            {
+                var character = ZDOMan.instance.GetZDO(peer.m_characterID);
+                if (character == null || character.GetPrefab() != "Player".GetStableHashCode()
+                    || character.GetOwner() != sender || character.GetBool(ZDOVars.s_dead,false)
+                    || Vector3.Distance(character.GetPosition(),position) > 5f) return false;
+                long playerId = character.GetLong(ZDOVars.s_playerID,0);
+                return playerId != 0 && WardAccess(playerId,position);
+            }
             foreach (var player in Player.GetAllPlayers())
             {
                 var view = player.GetComponent<ZNetView>();

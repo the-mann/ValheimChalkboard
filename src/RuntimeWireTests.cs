@@ -18,7 +18,7 @@ namespace ValheimWhiteboard
             var singleton = AccessTools.Field(typeof(ZRoutedRpc), "s_instance");
             var peers = (List<ZNetPeer>)AccessTools.Field(typeof(ZNet), "m_peers").GetValue(ZNet.instance);
             var cleanup = new List<ZNetPeer>();
-            UnityEngine.GameObject playerObject = null;
+            ZDO character = null;
             ZDO board = null;
             var host = new ZRoutedRpc(true); host.SetUID(ZNet.GetUID());
             var modded = new ZRoutedRpc(false); modded.SetUID(long.MaxValue - 1);
@@ -69,12 +69,13 @@ namespace ValheimWhiteboard
                 Pump(() => rejected);
                 check(rejected, "production missing-board rejection survives actual five-argument wire acknowledgement");
                 var position = new UnityEngine.Vector3(3000,100,3000);
-                playerObject = UnityEngine.Object.Instantiate(Jotunn.Managers.PrefabManager.Instance.GetPrefab("Player"),position,UnityEngine.Quaternion.identity);
-                playerObject.GetComponent<Player>().SetPlayerID(1234567L,"Headless QA writer");
-                playerObject.GetComponent<ZNetView>().GetZDO().SetOwner(writer[0].m_uid);
+                character = ZDOMan.instance.CreateNewZDO(position,"Player".GetStableHashCode());
+                character.SetPrefab("Player".GetStableHashCode()); character.Set(ZDOVars.s_playerID,1234567L);
+                character.Set(ZDOVars.s_dead,false); character.SetOwner(writer[0].m_uid);
+                writer[0].m_characterID = character.m_uid;
                 board = ZDOMan.instance.CreateNewZDO(position,BoardSchema.SignHash); board.SetPrefab(BoardSchema.SignHash);
                 BoardSchema.Initialize(board,1); board.SetOwner(stock[0].m_uid); BoardNetwork.Track(board);
-                check(BoardAccess.CanWrite(writer[0].m_uid,position), "actual Player/ZNetView ownership and ward APIs authorize nearby writer");
+                check(BoardAccess.CanWrite(writer[0].m_uid,position), "actual peer character ZDO authorizes nearby writer without instantiated Player");
                 bool saved = false;
                 var drawing = new byte[BoardData.ByteCount]; BoardData.SetPixel(drawing,20,30,6);
                 string encoded = Convert.ToBase64String(drawing);
@@ -94,8 +95,7 @@ namespace ValheimWhiteboard
             }
             finally
             {
-                if (playerObject != null)
-                { playerObject.GetComponent<ZNetView>().GetZDO()?.SetOwner(ZNet.GetUID()); ZNetScene.instance.Destroy(playerObject); }
+                if (character != null) { character.SetOwner(ZNet.GetUID()); ZDOMan.instance.DestroyZDO(character); }
                 if (board != null) { board.SetOwner(ZNet.GetUID()); ZDOMan.instance.DestroyZDO(board); }
                 foreach (var peer in cleanup) { peers.Remove(peer); peer.m_rpc.Dispose(); }
                 singleton.SetValue(null, originalRouter);

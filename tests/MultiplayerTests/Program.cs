@@ -123,6 +123,24 @@ class Program
         Test("ordinary sign cannot be written through drawing endpoint",()=>{
             Setup();var ordinary=new ZDO();ordinary.Set(ZDOVars.s_text,"Keep me");ZDOMan.instance.Add(ordinary);Save(101,ordinary,0,Image(0,0,1));Assert(!Accepted()&&ordinary.Values.Count==1&&ordinary.GetString(ZDOVars.s_text)=="Keep me","Ordinary sign modified");
         });
+        Test("dedicated server accepts peer character data with no instantiated players",()=>{
+            var f=Setup();Player.All.Clear();var character=new ZDO{Owner=101,Prefab="Player".GetStableHashCode()};
+            character.Set(ZDOVars.s_playerID,1001L);ZDOMan.instance.Add(character);ZNet.instance.Peers[101].m_characterID=character.m_uid;
+            Save(101,f.record,0,Image(10,10,3));Assert(Accepted()&&Revision(f.record)==1,"Dedicated writer rejected without Player GameObject");
+            character.Position=new Vector3(6,0,0);Save(101,f.record,1,Image(11,11,4));Assert(!Accepted(),"Distant replicated character accepted");
+            character.Position=Vector3.zero;character.Set(ZDOVars.s_dead,true);Save(101,f.record,1,Image(11,11,4));Assert(!Accepted(),"Dead replicated character accepted");
+            character.Set(ZDOVars.s_dead,false);character.Owner=102;Save(101,f.record,1,Image(11,11,4));Assert(!Accepted(),"Other peer character accepted");
+            character.Owner=101;var ward=new PrivateArea();PrivateArea.Add(ward);Save(101,f.record,1,Image(11,11,4));Assert(!Accepted(),"Ward rejected character bypassed");
+            ward.Permitted.Add(1001);Save(101,f.record,1,Image(11,11,4));Assert(Accepted(),"Permitted replicated character rejected");
+        });
+        Test("dedicated autosave completes instead of exhausting retries without a Player object",()=>{
+            var f=Setup();Player.All.Clear();var character=new ZDO{Owner=101,Prefab="Player".GetStableHashCode()};
+            character.Set(ZDOVars.s_playerID,1001L);ZDOMan.instance.Add(character);ZNet.instance.Peers[101].m_characterID=character.m_uid;
+            var draft=new AutosaveDraft(Pixels(f.record),0);BoardData.SetPixel(draft.Pixels,12,13,6);draft.Changed(0);
+            int attempts=0;
+            while(draft.Dirty&&attempts<3){attempts++;draft.BeginSubmit(Pixels(f.record),Revision(f.record),attempts);Save(101,f.record,draft.Revision,Convert.ToBase64String(draft.Pixels),attempts);draft.Acknowledge(Accepted(),Revision(f.record),attempts);}
+            Assert(attempts==1&&!draft.Dirty&&draft.Failures==0&&Revision(f.record)==1&&BoardData.Pixel(Pixels(f.record),12,13)==6,"Dedicated save exhausted retries and left draft unsynced");
+        });
         Test("out of range and dead writers rejected",()=>{
             var f=Setup();f.b.transform.position=new Vector3(6,0,0);Save(102,f.record,0,Image(0,0,1));Assert(!Accepted(),"Distant writer saved");f.b.transform.position=Vector3.zero;f.b.Dead=true;Save(102,f.record,0,Image(0,0,1));Assert(!Accepted()&&Revision(f.record)==0,"Dead writer saved");
         });
