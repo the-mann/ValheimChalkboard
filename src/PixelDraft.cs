@@ -33,7 +33,7 @@ namespace ValheimWhiteboard
         {
             if(Failed)return;
             int budget=256;
-            while(queued.Count>0&&pending.Count<512&&budget-->0)
+            while(!Failed&&queued.Count>0&&pending.Count<512&&budget-->0)
             {
                 var edit=queued.Dequeue();edit.Request=next();edit.SentAt=now;pending.Add(edit.Request,edit);send(edit);
             }

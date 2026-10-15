@@ -67,6 +67,40 @@ class Program
             while(d.Dirty){sent.Clear();d.Flush(13,()=>++n,sent.Add);foreach(var e in sent){Assert(e.Color==0,"Wipe sent nonzero pixel");zeros++;d.Acknowledge(e.Request,true);}}
             Assert(zeros==9216,"Wipe did not clear every pixel independently");
         });
+        Test("pixel edits match an ordered reference model across 2000 concurrent arrivals",()=>{
+            var f=Setup();var expected=new byte[BoardData.ByteCount];var random=new Random(6721);
+            for(int i=1;i<=2000;i++)
+            {
+                int index=random.Next(BoardData.Width*BoardData.Height),color=random.Next(BoardData.Colors);
+                ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,i%2==0?101:102,f.record.m_uid,i,index,color);
+                BoardData.SetPixel(expected,index%BoardData.Width,index/BoardData.Width,(byte)color);
+            }
+            Assert(Pixels(f.record).SequenceEqual(expected)&&Revision(f.record)==2000,"Ordered pixel model diverged");
+            Assert(ZRoutedRpc.instance.Sent.Where(x=>x.method==BoardNetwork.PixelResult).All(x=>((string)x.args[4]).Length<12),"Pixel notifications contain full snapshots");
+        });
+        Test("pixel queue bounds outstanding work and closes only after every acknowledgement",()=>{
+            var d=new PixelDraft(new byte[BoardData.ByteCount]);d.Replace(new byte[BoardData.ByteCount],true);d.Closing=true;
+            int n=0;var sent=new System.Collections.Generic.List<PixelDraft.Edit>();
+            d.Flush(0,()=>++n,sent.Add);d.Flush(0,()=>++n,sent.Add);d.Flush(0,()=>++n,sent.Add);
+            Assert(n==512&&d.PendingCount==512&&d.Dirty,"Queue did not bound in-flight work");
+            foreach(var e in sent)d.Acknowledge(e.Request,true);
+            while(d.Dirty){sent.Clear();d.Flush(1,()=>++n,sent.Add);foreach(var e in sent)d.Acknowledge(e.Request,true);}
+            Assert(n==9216&&d.Closing&&!d.Dirty,"Close discarded queued erasures");
+        });
+        Test("pixel protocol repairs vanilla owner rollback and rejects reused peer capabilities",()=>{
+            var f=Setup();ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,f.record.m_uid,1,1,3);
+            f.record.Values.Remove(BoardSchema.KindKey);f.record.Values.Remove(BoardSchema.DataKey);
+            ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,102,f.record.m_uid,2,2,4);
+            Assert(Revision(f.record)==2&&BoardData.Pixel(Pixels(f.record),1,0)==3&&BoardData.Pixel(Pixels(f.record),2,0)==4,"Vanilla rollback rejected valid pixel");
+            ZNet.instance.Peers[101]=new ZNetPeer{m_uid=101};ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,f.record.m_uid,3,3,5);
+            Assert(Revision(f.record)==2,"Reused peer inherited pixel capability");
+        });
+        Test("pixel access checks enforce range and ward and preserve ordinary signs",()=>{
+            var f=Setup();f.a.transform.position=new Vector3(6,0,0);ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,f.record.m_uid,1,1,1);
+            f.a.transform.position=Vector3.zero;PrivateArea.Add(new PrivateArea());ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,f.record.m_uid,2,1,1);
+            PrivateArea.Reset();var ordinary=new ZDO{Prefab=BoardSchema.SignHash};ZDOMan.instance.Add(ordinary);ZRoutedRpc.instance.Deliver(BoardNetwork.Pixel,101,ordinary.m_uid,3,1,1);
+            Assert(Revision(f.record)==0&&BoardSchema.Kind(ordinary)==0,"Pixel endpoint bypassed world access checks");
+        });
         Test("placement template advertises vanilla sign before record creation",()=>{
             Setup();foreach(int kind in new[]{1,2,3}){var o=new GameObject();o.AddComponent<BoardTemplate>().Kind=kind;var n=o.AddComponent<ZNetView>();string name=BoardSchema.LegacyNames[kind-1];BoardPatches.NetworkPrefab(n,ref name);Assert(name=="sign","Custom prefab escaped");n.Data.Prefab=name.GetStableHashCode();BoardPatches.InitializeBacking(n);Assert(BoardSchema.Kind(n.Data)==kind,"Size marker absent");}
         });

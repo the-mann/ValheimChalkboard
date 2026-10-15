@@ -136,6 +136,7 @@ namespace ValheimWhiteboard
             if(ZNet.instance==null||!ZNet.instance.IsServer()||!BoardMigration.Ready||!Connected(sender)
                 ||!capable.TryGetValue(sender,out var peer)||(sender!=ZNet.GetUID()&&!ReferenceEquals(peer,ZNet.instance.GetPeer(sender))))return;
             var record=ZDOMan.instance.GetZDO(id);
+            if(record!=null)RestoreCanonical(record);
             bool valid=record!=null&&BoardSchema.Kind(record)!=0&&index>=0&&index<BoardData.Width*BoardData.Height
                 &&color>=0&&color<BoardData.Colors&&BoardAccess.CanWrite(sender,record.GetPosition());
             if(!valid){router.InvokeRoutedRPC(sender,PixelResult,id,request,false,0,"");return;}
