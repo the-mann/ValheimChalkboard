@@ -8,6 +8,7 @@ Environment: Windows, Valheim dedicated server 1.0.17 (network 40, world format 
 - Static compatibility/package guards: passed.
 - Actual headless engine: 55 checks passed; report in `headless-local.txt`. Includes actual Jotunn optional-client/version enforcement and a successful production socket save using an actual Unity Player on a stock-owned sign.
 - Actual world cycle: legacy fixtures seeded and saved, first restart migrated and committed them, second restart loaded converted signs with all tested fields intact.
+- Removal test: 8 checks passed on a copy of the migrated world using stock game logic plus a separate read-only observer; Chalkboard and Jotunn were absent. All three pieces resolved as vanilla signs with drawing metadata intact. See `stock-world-local.txt`.
 - Pinned CI dependency URLs: all three downloaded and extracted successfully.
 - Initial published candidate `f60551e1340e68356ad9d991db5f834ea6d04bce`: Windows/Linux managed and static jobs passed; [headless CI](https://github.com/the-mann/ValheimChalkboard/actions/runs/38671755777) passed the seed cycle and two 46-check verification boots. Later checks added the Jotunn and successful-save cases above; their CI outcome is tracked on the PR.
 

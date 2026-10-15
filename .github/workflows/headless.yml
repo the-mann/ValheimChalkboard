@@ -32,6 +32,9 @@ jobs:
           ./scripts/test_headless.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -SaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -Mode Seed
           ./scripts/test_headless.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -SaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -Mode Verify
           ./scripts/test_headless.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -SaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -Mode Verify
+      - name: Load migrated world copy without Chalkboard or Jotunn
+        shell: pwsh
+        run: ./scripts/test_stock_world.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -MigratedSaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -OutputDir "$env:RUNNER_TEMP/chalkboard-stock-qa"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -40,3 +43,6 @@ jobs:
             ${{ runner.temp }}/chalkboard-qa/server/chalkboard-validation.log
             ${{ runner.temp }}/chalkboard-qa/server/BepInEx/LogOutput.log
             ${{ runner.temp }}/chalkboard-qa/server/BepInEx/config/ValheimChalkboard/validation/*.txt
+            ${{ runner.temp }}/chalkboard-stock-qa/stock-engine.log
+            ${{ runner.temp }}/chalkboard-stock-qa/BepInEx/LogOutput.log
+            ${{ runner.temp }}/chalkboard-stock-qa/BepInEx/config/stock-world-report.txt

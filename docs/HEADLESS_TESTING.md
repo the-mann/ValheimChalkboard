@@ -18,6 +18,14 @@ For the full disposable-world migration cycle, use a fresh save directory:
 ./scripts/test_headless.ps1 -ServerDir C:/qa/server -SaveDir C:/qa/migration-saves -Mode Verify
 ```
 
+Then test removal on a copy of that migrated world:
+
+```powershell
+./scripts/test_stock_world.ps1 -ServerDir C:/qa/server -MigratedSaveDir C:/qa/migration-saves -OutputDir C:/qa/stock-copy
+```
+
+Use a fresh output directory. This builds a separate read-only test observer with no Chalkboard/Jotunn reference or Harmony patches, stages only that observer and BepInEx core, copies the migrated saves and launches the stock server through that isolated loader. It positively checks that only the observer is loaded, all three records resolve as vanilla signs, and opaque bitmap/size/revision fields survive stock disk loading. It does not test Steam client authentication.
+
 The runner starts the actual server with `-batchmode -nographics -public 0` and the opt-in `-chalkboard-validate` flag. The plugin waits for a loaded host world, runs the engine suite, writes a fresh report, and exits with a failure code if any check fails. The runner rejects missing, stale or failed reports and kills its own server on timeout. No desktop interaction is needed.
 
 The engine suite checks installed Harmony hooks, all three template network identities, vanilla Sign retention, recipe/collider consistency, legacy conversion, and actual `ZDO.Serialize`/`Deserialize` roundtrips including vanilla text edits. It also uses real localhost TCP sockets, `ZRpc` and `ZRoutedRpc` for the production capability handshake and typed rejection acknowledgement, with a stock endpoint that has no chalkboard handlers.
