@@ -42,3 +42,11 @@ icon = (root / 'thunderstore/icon.png').read_bytes()
 check('Thunderstore icon is a 256 x 256 PNG',
       icon[:8] == b'\x89PNG\r\n\x1a\n' and struct.unpack('>II', icon[16:24]) == (256, 256))
 print('Compatibility/release guards passed. Static checks do not prove vanilla joins.')
+
+# Invalid source encodings can compile with replacement glyphs in visible UI.
+for folder, pattern in [('src', '*.cs'), ('thunderstore', '*.md')]:
+    for path in (root / folder).glob(pattern):
+        value = path.read_text(encoding='utf-8')
+        check(f'{path.relative_to(root)} is valid UTF-8 without replacement glyphs', '\ufffd' not in value)
+for name in ['README.md', 'CHANGELOG.md']:
+    check(f'{name} is valid UTF-8 without replacement glyphs', '\ufffd' not in (root / name).read_text(encoding='utf-8'))

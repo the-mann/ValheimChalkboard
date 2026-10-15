@@ -2,7 +2,7 @@
 
 Timber-framed drawing boards in three sizes, with chalk colors, undo, wiping and automatic saving. The editor fills most of the screen and uses Valheim's UI scale setting.
 
-## 0.6.0 � live pixel drawing
+## 0.6.1 - live pixel drawing
 
 The host/server runs Chalkboard. Modded clients draw on chalkboards; vanilla clients see ordinary wooden signs. The repository owner checked vanilla joining for the 0.5.0 sign fallback.
 

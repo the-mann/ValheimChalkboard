@@ -181,7 +181,7 @@ namespace ValheimWhiteboard
             }
             draft.Observe(board.ReadPixels());Refresh();
             draft.CheckTimeout(Time.unscaledTime);
-            if(draft.Failed)status="Could not sync. Your marks are still here � Retry.";
+            if(draft.Failed)status="Could not sync. Your marks are still here - Retry.";
             Flush();
             if(closing&&!dirty)Close();
         }
@@ -207,7 +207,7 @@ namespace ValheimWhiteboard
         {
             if(instance==null||instance.board!=target)return;
             if(request!=0)instance.draft.Acknowledge(request,accepted);
-            instance.status=instance.draft.Failed?"Could not sync. Your marks are still here � Retry.":"Your marks are kept automatically.";
+            instance.status=instance.draft.Failed?"Could not sync. Your marks are still here - Retry.":"Your marks are kept automatically.";
         }
         public static void BoardDestroyed(DrawingBoard target){if(instance!=null&&instance.board==target)instance.Close();}
         private void Close()=>Destroy(gameObject);

@@ -1,3 +1,6 @@
+## 0.6.1
+- Correct text encoding in the editor and README; add a UTF-8 release guard.
+
 ## 0.6.0
 - Stream individual pixel edits while drawing; different pixels combine and the last server arrival wins for each pixel.
 - Keep drawing while edits await acknowledgement; retry retains queued pixels.
@@ -5,7 +8,7 @@
 - Rename the wipe brush to Eraser; retain Wipe board for clearing the board.
 - Requires 0.6.x on the host and drawing clients because the wire protocol changed.
 
-## 0.5.0 (unreleased rewrite candidate)
+## 0.5.0
 - Store all boards as vanilla signs; decorate marked signs on modded clients.
 - Allow optional vanilla clients through the server-required Jotunn policy.
 - Route drawing requests to the host with capability negotiation and revision acknowledgements.
