@@ -18,6 +18,8 @@ namespace ValheimWhiteboard
             var singleton = AccessTools.Field(typeof(ZRoutedRpc), "s_instance");
             var peers = (List<ZNetPeer>)AccessTools.Field(typeof(ZNet), "m_peers").GetValue(ZNet.instance);
             var cleanup = new List<ZNetPeer>();
+            UnityEngine.GameObject playerObject = null;
+            ZDO board = null;
             var host = new ZRoutedRpc(true); host.SetUID(ZNet.GetUID());
             var modded = new ZRoutedRpc(false); modded.SetUID(long.MaxValue - 1);
             var vanilla = new ZRoutedRpc(false); vanilla.SetUID(long.MaxValue - 2);
@@ -42,13 +44,18 @@ namespace ValheimWhiteboard
                 host.AddPeer(writer[0]); modded.AddPeer(writer[1]);
                 host.AddPeer(stock[0]); vanilla.AddPeer(stock[1]);
                 BoardNetwork.Register();
+                var compatibilityType = typeof(Jotunn.Main).Assembly.GetType("Jotunn.Utils.ModCompatibility", true);
+                bool admitted = (bool)AccessTools.Method(compatibilityType, "ZNet_RPC_PeerInfo")
+                    .Invoke(null, new object[] {ZNet.instance,stock[0].m_rpc,new ZPackage()});
+                check(admitted, "actual Jotunn peer-info gate admits an endpoint with no Jotunn version handshake");
                 bool hello = false, rejected = false, vanillaData = false;
                 int stockRoutedMessages = 0;
                 stock[1].m_rpc.Register<ZPackage>("RoutedRPC", (rpc, package) => stockRoutedMessages++);
                 modded.Register<int>(BoardNetwork.HelloResult, (sender, protocol) => hello = sender == ZNet.GetUID() && protocol == BoardNetwork.Protocol);
                 var missing = new ZDOID(ZNet.GetUID(), uint.MaxValue);
-                modded.Register<ZDOID,int,bool,int,string>(BoardNetwork.Result, (sender,id,request,accepted,revision,pixels) =>
-                    rejected = sender == ZNet.GetUID() && id.Equals(missing) && request == 77 && !accepted && revision == 0 && pixels == BoardSchema.Blank);
+                Action<long,ZDOID,int,bool,int,string> onResult = (sender,id,request,accepted,revision,pixels) =>
+                    rejected = sender == ZNet.GetUID() && id.Equals(missing) && request == 77 && !accepted && revision == 0 && pixels == BoardSchema.Blank;
+                modded.Register<ZDOID,int,bool,int,string>(BoardNetwork.Result, (sender,id,request,accepted,revision,pixels) => onResult(sender,id,request,accepted,revision,pixels));
                 void Pump(Func<bool> done)
                 {
                     var timer = Stopwatch.StartNew();
@@ -61,6 +68,21 @@ namespace ValheimWhiteboard
                 modded.InvokeRoutedRPC(ZNet.GetUID(), BoardNetwork.Save, missing, 77, 0, BoardSchema.Blank);
                 Pump(() => rejected);
                 check(rejected, "production missing-board rejection survives actual five-argument wire acknowledgement");
+                var position = new UnityEngine.Vector3(3000,100,3000);
+                playerObject = UnityEngine.Object.Instantiate(Jotunn.Managers.PrefabManager.Instance.GetPrefab("Player"),position,UnityEngine.Quaternion.identity);
+                playerObject.GetComponent<Player>().SetPlayerID(1234567L,"Headless QA writer");
+                playerObject.GetComponent<ZNetView>().GetZDO().SetOwner(writer[0].m_uid);
+                board = ZDOMan.instance.CreateNewZDO(position,BoardSchema.SignHash); board.SetPrefab(BoardSchema.SignHash);
+                BoardSchema.Initialize(board,1); board.SetOwner(stock[0].m_uid); BoardNetwork.Track(board);
+                check(BoardAccess.CanWrite(writer[0].m_uid,position), "actual Player/ZNetView ownership and ward APIs authorize nearby writer");
+                bool saved = false;
+                var drawing = new byte[BoardData.ByteCount]; BoardData.SetPixel(drawing,20,30,6);
+                string encoded = Convert.ToBase64String(drawing);
+                onResult = (sender,id,request,accepted,revision,pixels) => saved = sender == ZNet.GetUID() && id.Equals(board.m_uid) && request == 78 && accepted && revision == 1 && pixels == encoded;
+                modded.InvokeRoutedRPC(ZNet.GetUID(),BoardNetwork.Save,board.m_uid,78,0,encoded);
+                Pump(() => saved);
+                check(saved && board.GetString(BoardSchema.DataKey,"") == encoded && board.GetInt(BoardSchema.RevisionKey,0) == 1 && board.GetOwner() == ZNet.GetUID(),
+                    "actual host accepts socket drawing write on stock-owned sign and returns canonical snapshot");
                 // A stock endpoint has no Chalkboard handlers. Its ordinary ZDO payload still works.
                 stock[1].m_rpc.Register<ZPackage>("ChalkboardQA_StockData", (rpc, package) =>
                 { vanillaData = package.ReadInt() == BoardSchema.SignHash && package.ReadString() == "Chalkboard"; });
@@ -72,6 +94,9 @@ namespace ValheimWhiteboard
             }
             finally
             {
+                if (playerObject != null)
+                { playerObject.GetComponent<ZNetView>().GetZDO()?.SetOwner(ZNet.GetUID()); ZNetScene.instance.Destroy(playerObject); }
+                if (board != null) { board.SetOwner(ZNet.GetUID()); ZDOMan.instance.DestroyZDO(board); }
                 foreach (var peer in cleanup) { peers.Remove(peer); peer.m_rpc.Dispose(); }
                 singleton.SetValue(null, originalRouter);
                 AccessTools.Field(typeof(BoardNetwork), "router").SetValue(null, originalRouter);

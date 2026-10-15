@@ -38,6 +38,7 @@ namespace ValheimWhiteboard
                     Check(target != null && Harmony.GetPatchInfo(target)?.Owners.Contains("marcus.valheim.whiteboard") == true,
                         "Harmony hook installed: " + target?.DeclaringType?.Name + "." + target?.Name);
                 var vanilla = PrefabManager.Instance.GetPrefab("sign");
+                RuntimeCompatibilityTests.Run(Check);
                 Check(vanilla != null && vanilla.GetComponent<Sign>() != null && vanilla.GetComponent<BoardTemplate>() == null,
                     "vanilla sign prefab remains undecorated and retains Sign");
                 for (int kind = 1; kind <= 3; kind++)

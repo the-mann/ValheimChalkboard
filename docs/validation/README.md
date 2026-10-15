@@ -6,9 +6,10 @@ Environment: Windows, Valheim dedicated server 1.0.17 (network 40, world format 
 - Actual dedicated-server reference build: passed, no warnings or errors.
 - Managed production-code integration suite: 40 passed (.NET 6 local override; CI uses .NET 8).
 - Static compatibility/package guards: passed.
-- Actual headless engine: 46 checks passed; report in `headless-local.txt`.
+- Actual headless engine: 55 checks passed; report in `headless-local.txt`. Includes actual Jotunn optional-client/version enforcement and a successful production socket save using an actual Unity Player on a stock-owned sign.
 - Actual world cycle: legacy fixtures seeded and saved, first restart migrated and committed them, second restart loaded converted signs with all tested fields intact.
 - Pinned CI dependency URLs: all three downloaded and extracted successfully.
+- Initial published candidate `f60551e1340e68356ad9d991db5f834ea6d04bce`: Windows/Linux managed and static jobs passed; [headless CI](https://github.com/the-mann/ValheimChalkboard/actions/runs/38671755777) passed the seed cycle and two 46-check verification boots. Later checks added the Jotunn and successful-save cases above; their CI outcome is tracked on the PR.
 
 The server ran in the shell sandbox's low-integrity mode. Its logs also contain graphics-disabled shader notices and denied PlayerPrefs writes; those are not treated as proof of clean visual/input behavior. No normal player worlds or installed profile were modified.
 
