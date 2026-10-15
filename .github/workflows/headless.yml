@@ -1,0 +1,41 @@
+name: Headless Valheim engine tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install isolated dedicated server and pinned mod dependencies
+        shell: pwsh
+        run: ./scripts/prepare_headless.ps1 -Root "$env:RUNNER_TEMP/chalkboard-qa"
+      - name: Build against the actual dedicated server
+        shell: pwsh
+        run: |
+          $server = "$env:RUNNER_TEMP/chalkboard-qa/server"
+          dotnet build src -c Release "-p:GameManaged=$server/valheim_server_Data/Managed" "-p:BepInExDir=$server/BepInEx" "-p:JotunnPath=$server/BepInEx/plugins/Jotunn/Jotunn.dll"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force "$server/BepInEx/plugins/ValheimChalkboard" | Out-Null
+          Copy-Item src/bin/Release/netstandard2.1/ValheimWhiteboard.dll "$server/BepInEx/plugins/ValheimChalkboard/"
+      - name: Run actual Unity and ZDO checks without a desktop
+        shell: pwsh
+        run: |
+          ./scripts/test_headless.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -SaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -Mode Seed
+          ./scripts/test_headless.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -SaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -Mode Verify
+          ./scripts/test_headless.ps1 -ServerDir "$env:RUNNER_TEMP/chalkboard-qa/server" -SaveDir "$env:RUNNER_TEMP/chalkboard-qa/saves" -Mode Verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: headless-engine-evidence
+          path: |
+            ${{ runner.temp }}/chalkboard-qa/server/chalkboard-validation.log
+            ${{ runner.temp }}/chalkboard-qa/server/BepInEx/LogOutput.log
+            ${{ runner.temp }}/chalkboard-qa/server/BepInEx/config/ValheimChalkboard/validation/*.txt

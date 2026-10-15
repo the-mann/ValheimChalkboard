@@ -1,8 +1,7 @@
 {
   "name": "ValheimChalkboard",
-  "version_number": "0.4.1",
+  "version_number": "0.5.0",
   "website_url": "https://github.com/the-mann/ValheimChalkboard",
   "description": "Draw on timber-framed chalkboards in three sizes, with native Valheim UI, chalk colors and automatic saving.",
   "dependencies": ["denikson-BepInExPack_Valheim-5.4.2351", "ValheimModding-Jotunn-2.30.2"]
 }
-

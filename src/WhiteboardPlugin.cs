@@ -1,137 +1,83 @@
 using System;
 using BepInEx;
+using BepInEx.Logging;
+using HarmonyLib;
 using Jotunn.Configs;
 using Jotunn.Entities;
 using Jotunn.Managers;
 using Jotunn.Utils;
-using TMPro;
 using UnityEngine;
 
 namespace ValheimWhiteboard
 {
-    [BepInPlugin("marcus.valheim.whiteboard", "Valheim Chalkboard", "0.4.1")]
+    [BepInPlugin("marcus.valheim.whiteboard", "Valheim Chalkboard", "0.5.0")]
     [BepInDependency(Jotunn.Main.ModGuid)]
-    [NetworkCompatibility(CompatibilityLevel.EveryoneMustHaveMod, VersionStrictness.Patch)]
+    [NetworkCompatibility(CompatibilityLevel.ServerMustHaveMod, VersionStrictness.Minor)]
     public sealed class WhiteboardPlugin : BaseUnityPlugin
     {
-        private Material boardMaterial;
-        private Material frameMaterial;
-
+        private static ManualLogSource log;
+        private Harmony harmony;
+        private bool faulted;
+        private bool validateHeadless;
+        private bool validated;
+        private float validationDeadline;
+        public static void LogInfo(string message) => log?.LogInfo(message);
+        public static void LogError(string message) => log?.LogError(message);
         private void Awake()
         {
+            log = Logger;
+            validateHeadless = Array.IndexOf(Environment.GetCommandLineArgs(), "-chalkboard-validate") >= 0;
+            validationDeadline = Time.realtimeSinceStartup + 180f;
+            harmony = new Harmony("marcus.valheim.whiteboard"); harmony.PatchAll(typeof(WhiteboardPlugin).Assembly);
             PrefabManager.OnVanillaPrefabsAvailable += Register;
+            new Terminal.ConsoleCommand("chalkboard_validate", "Run non-world-mutating engine smoke checks on a host.", args => { args.Context.AddString(RuntimeSmokeTests.Run()); }, onlyServer: true);
         }
-
-        private void OnDestroy()
+        private void Update()
         {
-            PrefabManager.OnVanillaPrefabsAvailable -= Register;
+            if (faulted) return;
+            try
+            {
+                BoardNetwork.Tick();
+                if (validateHeadless && !validated && GUIManager.IsHeadless())
+                {
+                    if (BoardMigration.Ready && BoardMigration.Persisted && ZNet.instance != null && ZNet.instance.IsServer() && ZNetScene.instance != null
+                        && ZoneSystem.instance != null && ZoneSystem.instance.LocationsGenerated)
+                    {
+                        validated = true;
+                        string report = RuntimeSmokeTests.Run();
+                        Application.Quit(report.Contains("FAIL ") ? 1 : 0);
+                    }
+                    else if (Time.realtimeSinceStartup > validationDeadline)
+                    { validated = true; LogError("FAIL headless validation timed out waiting for the disposable world."); Application.Quit(2); }
+                }
+            }
+            catch (Exception ex) { faulted = true; LogError("Chalkboard initialization stopped: " + ex); if (validateHeadless) Application.Quit(3); }
         }
-
+        private void OnDestroy()
+        { PrefabManager.OnVanillaPrefabsAvailable -= Register; harmony?.UnpatchSelf(); }
         private void Register()
         {
             PrefabManager.OnVanillaPrefabsAvailable -= Register;
-            RegisterBoard("piece_whiteboard", "Chalkboard (Small)", 1f, 4, 1);
-            RegisterBoard("piece_whiteboard_medium", "Chalkboard (Medium)", 1.5f, 8, 2);
-            RegisterBoard("piece_whiteboard_large", "Chalkboard (Large)", 2f, 16, 4);
+            for (int kind = 1; kind <= 3; kind++) RegisterBoard(kind);
         }
-
-        private void RegisterBoard(string prefabName, string displayName, float size, int wood, int coal)
+        private void RegisterBoard(int kind)
         {
             try
             {
-                var config = new PieceConfig
+                var custom = new CustomPiece(BoardSchema.LegacyNames[kind - 1], "sign", new PieceConfig
                 {
-                    Name = displayName,
-                    Description = "A large timber-framed slate for sketches and plans. Interact to draw.",
-                    PieceTable = "Hammer",
-                    Category = "Furniture",
-                    Requirements = new[] { new RequirementConfig("Wood", wood, 0, true),
-                                           new RequirementConfig("Coal", coal, 0, true) }
-                };
-                // Retain vanilla networking, durability and snap points.
-                // Replace the sign interaction with our drawing component.
-                var custom = new CustomPiece(prefabName, "sign", config);
+                    Name = BoardSchema.Name(kind), Description = "A drawing slate. Vanilla players see a wooden sign.",
+                    PieceTable = "Hammer", Category = "Furniture"
+                });
                 var prefab = custom.PiecePrefab;
-                var text = prefab.GetComponentInChildren<TMP_Text>(true);
-                if (prefab.GetComponent<Sign>() == null || text == null)
-                    throw new InvalidOperationException("The vanilla sign layout has changed: Sign/TMP_Text missing.");
-
-                Material vanillaMaterial = null;
-                // Reuse a shipped shader: Unity's generic Unlit shaders are stripped from Valheim.
-                foreach (var renderer in prefab.GetComponentsInChildren<MeshRenderer>(true))
-                    if (renderer.GetComponent<TMP_Text>() == null)
-                    {
-                        if (vanillaMaterial == null) vanillaMaterial = renderer.sharedMaterial;
-                        renderer.enabled = false;
-                    }
-
-                if (vanillaMaterial == null) throw new InvalidOperationException("Vanilla sign material missing.");
-                boardMaterial = new Material(vanillaMaterial);
-                boardMaterial.mainTexture = Texture2D.whiteTexture;
-                boardMaterial.mainTextureScale = Vector2.one;
-                boardMaterial.mainTextureOffset = Vector2.zero;
-                if (boardMaterial.HasProperty("_Color")) boardMaterial.SetColor("_Color", Color.white);
-                if (boardMaterial.HasProperty("_BumpMap")) boardMaterial.SetTexture("_BumpMap", null);
-                boardMaterial.DisableKeyword("_NORMALMAP");
-                frameMaterial = new Material(vanillaMaterial);
-                if (frameMaterial.HasProperty("_Color")) frameMaterial.SetColor("_Color", new Color(0.65f, 0.48f, 0.30f));
-                // Text is a local XY plane facing negative Z. Build the board in
-                // that same plane, slightly behind the lettering, at root scale.
-                var visual = new GameObject("WhiteboardVisual");
-                visual.transform.SetParent(prefab.transform, false);
-                visual.layer = prefab.layer;
-                visual.transform.position = text.transform.position;
-                visual.transform.rotation = text.transform.rotation;
-                visual.transform.localScale = new Vector3(size, size, 1f);
-                var slateMaterial = new Material(boardMaterial);
-                if (slateMaterial.HasProperty("_Color")) slateMaterial.SetColor("_Color", DrawingBoard.Palette[0]);
-                Part(visual.transform, "WritingSurface", new Vector3(0, 0, 0.045f),
-                     new Vector3(2.0f, 1.15f, 0.06f), slateMaterial, true);
-                Part(visual.transform, "Top", new Vector3(0, 0.60f, 0.045f),
-                     new Vector3(2.16f, 0.09f, 0.13f), frameMaterial, false);
-                Part(visual.transform, "Bottom", new Vector3(0, -0.60f, 0.045f),
-                     new Vector3(2.16f, 0.09f, 0.13f), frameMaterial, false);
-                foreach (float x in new[] { -1.025f, 1.025f })
-                    Part(visual.transform, "Side", new Vector3(x, 0, 0.045f),
-                         new Vector3(0.09f, 1.15f, 0.13f), frameMaterial, false);
-
-                Part(visual.transform, "ChalkTray", new Vector3(0, -0.65f, -0.06f),
-                     new Vector3(2.16f, 0.08f, 0.25f), frameMaterial, false);
-                UnityEngine.Object.DestroyImmediate(prefab.GetComponent<Sign>());
-                text.gameObject.SetActive(false);
-                var drawing = prefab.AddComponent<DrawingBoard>();
-                drawing.Surface = visual.transform;
-                drawing.DisplayName = displayName;
-                drawing.SurfaceMaterial = boardMaterial;
-
-                if (!PieceManager.Instance.AddPiece(custom))
-                    throw new InvalidOperationException("Jotunn rejected the whiteboard prefab.");
-                Logger.LogInfo(displayName + " registered in the Hammer menu: " + prefabName);
+                // Local menu template only. The Harmony prefab-name hook creates a vanilla sign ZDO.
+                prefab.AddComponent<BoardTemplate>().Kind = kind;
+                // Identical recipe/refunds and solid collider for all clients, including vanilla.
+                prefab.GetComponent<Piece>().m_resources = PrefabManager.Instance.GetPrefab("sign").GetComponent<Piece>().m_resources;
+                if (!PieceManager.Instance.AddPiece(custom)) throw new InvalidOperationException("Piece registration failed");
+                LogInfo(BoardSchema.Name(kind) + " registered; network backing: vanilla sign.");
             }
-            catch (Exception ex)
-            {
-                Logger.LogError(displayName + " registration failed: " + ex);
-            }
-        }
-
-        private static void Part(Transform parent, string name, Vector3 position,
-                                 Vector3 size, Material material, bool collider)
-        {
-            var part = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            part.name = name;
-            part.layer = parent.gameObject.layer;
-            part.transform.SetParent(parent, false);
-            part.transform.localPosition = position;
-            part.transform.localScale = size;
-            part.GetComponent<MeshRenderer>().sharedMaterial = material;
-            if (!collider) UnityEngine.Object.DestroyImmediate(part.GetComponent<Collider>());
+            catch (Exception ex) { LogError("Chalkboard registration failed: " + ex); }
         }
     }
 }
-
-
-
-
-
-
-
